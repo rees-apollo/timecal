@@ -71,13 +71,7 @@
     workingHours: WorkingHoursSchedule
     getClassification: (
       eventId: string
-    ) =>
-      | 'primary-task'
-      | 'other-ticket'
-      | 'off-task'
-      | 'custom-task'
-      | 'ignored'
-      | 'unclassified'
+    ) => 'primary-task' | 'other-ticket' | 'off-task' | 'custom-task' | 'ignored' | 'unclassified'
     getCustomTaskCategory: (eventId: string) => string | undefined
     getEventColor: (eventId: string) => string
     createPlanningEvent: (
@@ -163,9 +157,10 @@
     return `${String(hour + 1).padStart(2, '0')}:00`
   }
 
-  const normalizeDayBoundaries = (
-    candidate: { start: string; end: string }
-  ): { start: string; end: string } => {
+  const normalizeDayBoundaries = (candidate: {
+    start: string
+    end: string
+  }): { start: string; end: string } => {
     const start = toScheduleXBoundary(candidate.start, 'start')
     const end = toScheduleXBoundary(candidate.end, 'end')
     if (!start || !end) {

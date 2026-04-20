@@ -52,7 +52,9 @@
   const calendarLinks = $derived(snapshot?.state.calendarLinks ?? [])
   const manualCustomTaskEntries = $derived(snapshot?.state.manualCustomTaskEntries ?? [])
   const customTaskCategories = $derived(snapshot?.state.settings.customTaskCategories ?? [])
-  const activeSessionId = $derived(snapshot?.activeSession?.id ?? snapshot?.state.activeSessionId ?? '')
+  const activeSessionId = $derived(
+    snapshot?.activeSession?.id ?? snapshot?.state.activeSessionId ?? ''
+  )
   const loggedWorklogs = $derived(snapshot?.state.loggedWorklogs ?? [])
 
   // ── All Tasks timeline ──────────────────────────────────────────────────────
@@ -122,13 +124,17 @@
     dayPickerValue = parseDayKeyOrToday(dayKey)
   })
 
-  const classificationByEventId = $derived(new Map(calendarLinks.map((link) => [link.eventId, link])))
+  const classificationByEventId = $derived(
+    new Map(calendarLinks.map((link) => [link.eventId, link]))
+  )
 
   const effectiveScheduleForDay = $derived.by(() => {
     const dayStart = new Date(`${dayKey}T00:00:00`)
     if (Number.isNaN(dayStart.getTime())) return defaultWorkingHours
     const weekStartKey = getWeekStartKey(dayStart)
-    return sanitizeWorkingHoursSchedule(weeklyWorkingHoursOverrides[weekStartKey] ?? defaultWorkingHours)
+    return sanitizeWorkingHoursSchedule(
+      weeklyWorkingHoursOverrides[weekStartKey] ?? defaultWorkingHours
+    )
   })
 
   const parseLocalDateTime = (date: Date, hhmm: string): Date | null => {
@@ -155,7 +161,16 @@
   const dayTimeline = $derived.by(() => {
     const dayStart = new Date(`${dayKey}T00:00:00`)
     if (Number.isNaN(dayStart.getTime())) {
-      return { rows: [] as DayTimelineRow[], workdayLabel: '', totalMinutes: 0, activeMinutes: 0, meetingMinutes: 0, lunchMinutes: 0, noWorkMinutes: 0, overlapConflicts: 0 }
+      return {
+        rows: [] as DayTimelineRow[],
+        workdayLabel: '',
+        totalMinutes: 0,
+        activeMinutes: 0,
+        meetingMinutes: 0,
+        lunchMinutes: 0,
+        noWorkMinutes: 0,
+        overlapConflicts: 0
+      }
     }
 
     const dayName = WEEKDAY_BY_INDEX[dayStart.getDay()]
@@ -164,13 +179,28 @@
     const workEnd = dayHours ? parseLocalDateTime(dayStart, dayHours.end) : null
 
     if (!workStart || !workEnd || workEnd.getTime() <= workStart.getTime()) {
-      return { rows: [] as DayTimelineRow[], workdayLabel: 'No working hours configured for this day.', totalMinutes: 0, activeMinutes: 0, meetingMinutes: 0, lunchMinutes: 0, noWorkMinutes: 0, overlapConflicts: 0 }
+      return {
+        rows: [] as DayTimelineRow[],
+        workdayLabel: 'No working hours configured for this day.',
+        totalMinutes: 0,
+        activeMinutes: 0,
+        meetingMinutes: 0,
+        lunchMinutes: 0,
+        noWorkMinutes: 0,
+        overlapConflicts: 0
+      }
     }
 
     const windowStartMs = workStart.getTime()
     const windowEndMs = workEnd.getTime()
 
-    type Span = { startMs: number; endMs: number; title: string; subtitle?: string; assignedTaskLabel?: string }
+    type Span = {
+      startMs: number
+      endMs: number
+      title: string
+      subtitle?: string
+      assignedTaskLabel?: string
+    }
     const taskSpans: Span[] = []
     const meetingSpans: Span[] = []
     const boundaries = new Set<number>([windowStartMs, windowEndMs])
@@ -185,7 +215,12 @@
       boundaries.add(startMs)
       boundaries.add(endMs)
       const isActive = !session.endIso || session.id === activeSessionId
-      taskSpans.push({ startMs, endMs, title: isActive ? `${session.jiraIssueKey} (active)` : session.jiraIssueKey, subtitle: session.jiraIssueSummary })
+      taskSpans.push({
+        startMs,
+        endMs,
+        title: isActive ? `${session.jiraIssueKey} (active)` : session.jiraIssueKey,
+        subtitle: session.jiraIssueSummary
+      })
     }
 
     for (const event of calendarEvents) {
@@ -199,19 +234,34 @@
       boundaries.add(startMs)
       boundaries.add(endMs)
       const assignedTaskLabel =
-        classification === 'primary-task' ? 'Primary task'
-        : classification === 'other-ticket' ? (link?.otherTicketKey?.trim() || 'Other ticket')
-        : classification === 'custom-task' ? (link?.customTaskCategory?.trim() || 'Custom task')
-        : classification === 'ignored' ? 'Ignored'
-        : 'Unassigned'
+        classification === 'primary-task'
+          ? 'Primary task'
+          : classification === 'other-ticket'
+            ? link?.otherTicketKey?.trim() || 'Other ticket'
+            : classification === 'custom-task'
+              ? link?.customTaskCategory?.trim() || 'Custom task'
+              : classification === 'ignored'
+                ? 'Ignored'
+                : 'Unassigned'
       const subtitle =
-        classification === 'primary-task' ? 'Calendar event (primary-task linked)'
-        : classification === 'other-ticket' ? `Calendar event (linked to ${assignedTaskLabel})`
-        : classification === 'custom-task' ? `Calendar event (custom task: ${assignedTaskLabel})`
-        : event.source === 'off-task' || event.source === 'planning' ? 'Off-task block'
-        : classification === 'ignored' ? 'Ignored calendar event'
-        : 'Calendar event'
-      meetingSpans.push({ startMs, endMs, title: event.subject || 'Meeting', subtitle, assignedTaskLabel })
+        classification === 'primary-task'
+          ? 'Calendar event (primary-task linked)'
+          : classification === 'other-ticket'
+            ? `Calendar event (linked to ${assignedTaskLabel})`
+            : classification === 'custom-task'
+              ? `Calendar event (custom task: ${assignedTaskLabel})`
+              : event.source === 'off-task' || event.source === 'planning'
+                ? 'Off-task block'
+                : classification === 'ignored'
+                  ? 'Ignored calendar event'
+                  : 'Calendar event'
+      meetingSpans.push({
+        startMs,
+        endMs,
+        title: event.subject || 'Meeting',
+        subtitle,
+        assignedTaskLabel
+      })
     }
 
     let lunchStartMs: number | null = null
@@ -243,8 +293,11 @@
       const endMs = sortedBoundaries[index + 1]
       if (endMs <= startMs) continue
       const activeTasks = taskSpans.filter((span) => span.startMs < endMs && span.endMs > startMs)
-      const activeMeetings = meetingSpans.filter((span) => span.startMs < endMs && span.endMs > startMs)
-      const inLunch = lunchStartMs !== null && lunchEndMs !== null && lunchStartMs < endMs && lunchEndMs > startMs
+      const activeMeetings = meetingSpans.filter(
+        (span) => span.startMs < endMs && span.endMs > startMs
+      )
+      const inLunch =
+        lunchStartMs !== null && lunchEndMs !== null && lunchStartMs < endMs && lunchEndMs > startMs
       let kind: IntervalKind = 'no-work'
       let title = 'No work'
       let subtitle: string | undefined
@@ -269,7 +322,10 @@
         assignedTaskLabel = activeTasks[0].title
       }
 
-      if (activeTasks.length > 1 || activeMeetings.length > 1) { isOverlapConflict = true; overlapConflicts += 1 }
+      if (activeTasks.length > 1 || activeMeetings.length > 1) {
+        isOverlapConflict = true
+        overlapConflicts += 1
+      }
 
       const segmentMinutes = Math.max(0, Math.round((endMs - startMs) / 60_000))
       if (kind === 'active-task') activeMinutes += segmentMinutes
@@ -278,9 +334,16 @@
       if (kind === 'no-work') noWorkMinutes += segmentMinutes
 
       resultRows.push({
-        startIso: new Date(startMs).toISOString(), endIso: new Date(endMs).toISOString(),
-        startLabel: formatRangeTime(new Date(startMs)), endLabel: formatRangeTime(new Date(endMs)),
-        durationLabel: formatDurationBetween(startMs, endMs), kind, title, subtitle, assignedTaskLabel, isOverlapConflict
+        startIso: new Date(startMs).toISOString(),
+        endIso: new Date(endMs).toISOString(),
+        startLabel: formatRangeTime(new Date(startMs)),
+        endLabel: formatRangeTime(new Date(endMs)),
+        durationLabel: formatDurationBetween(startMs, endMs),
+        kind,
+        title,
+        subtitle,
+        assignedTaskLabel,
+        isOverlapConflict
       })
     }
 
@@ -288,7 +351,11 @@
       rows: resultRows,
       workdayLabel: `${formatRangeTime(workStart)} - ${formatRangeTime(workEnd)}`,
       totalMinutes: Math.max(0, Math.round((windowEndMs - windowStartMs) / 60_000)),
-      activeMinutes, meetingMinutes, lunchMinutes, noWorkMinutes, overlapConflicts
+      activeMinutes,
+      meetingMinutes,
+      lunchMinutes,
+      noWorkMinutes,
+      overlapConflicts
     }
   })
 
@@ -529,7 +596,11 @@
         bookingMinutesByDay.set(dayKey, dayBookings)
       }
 
-      const subtractBookingMinutes = (dayKey: string, bookingCode: string, minutes: number): number => {
+      const subtractBookingMinutes = (
+        dayKey: string,
+        bookingCode: string,
+        minutes: number
+      ): number => {
         if (minutes <= 0) return 0
         const dayBookings = bookingMinutesByDay.get(dayKey)
         if (!dayBookings) return 0
@@ -607,7 +678,11 @@
               continue
             }
 
-            const deducted = subtractBookingMinutes(segment.dayKey, daySegment.bookingCode, consumedMinutes)
+            const deducted = subtractBookingMinutes(
+              segment.dayKey,
+              daySegment.bookingCode,
+              consumedMinutes
+            )
             if (deducted <= 0) continue
 
             if (targetBookingCode) {
@@ -630,7 +705,9 @@
       }
 
       const categoryBookingCodeByName = new Map(
-        customTaskCategories.map((category) => [category.name, normalizeBookingCode(category.bookingCode)] as const)
+        customTaskCategories.map(
+          (category) => [category.name, normalizeBookingCode(category.bookingCode)] as const
+        )
       )
 
       const eventLinkById = new Map(calendarLinks.map((link) => [link.eventId, link] as const))
@@ -742,63 +819,66 @@
 
     <div class="flex flex-col gap-2 py-2">
       {#if selectedTab !== 'daily-overview'}
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="text-muted-foreground text-xs">Selected week: {selectedWeekLabel}</div>
-        <div class="flex flex-wrap items-center gap-2">
-          <Button variant="outline" size="sm" onclick={() => (weekOffset -= 1)}>Previous</Button>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={weekOffset === 0}
-            onclick={() => (weekOffset += 1)}
-          >
-            Next
-          </Button>
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="text-muted-foreground text-xs">Selected week: {selectedWeekLabel}</div>
+          <div class="flex flex-wrap items-center gap-2">
+            <Button variant="outline" size="sm" onclick={() => (weekOffset -= 1)}>Previous</Button>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={weekOffset === 0}
+              onclick={() => (weekOffset += 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <Accordion.Root type="single" collapsible class="rounded-md border" value="">
-        <Accordion.Item value="week-hours">
-          <Accordion.Trigger class="px-3 py-2 no-underline hover:no-underline">
-            Week Timing Override ({selectedWeekLabel})
-          </Accordion.Trigger>
-          <Accordion.Content>
-            <div class="border-t p-3 pt-2">
-              <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
-                <p class="text-muted-foreground text-xs">
-                  Edits here update both Work Logs and Timesheet for the selected week.
-                </p>
-                <div class="flex flex-wrap items-center gap-2">
-                  <Button variant="outline" size="sm" disabled={isBusy} onclick={resetWeekToDefault}
-                    >Use Default</Button
-                  >
-                  <Button size="sm" disabled={isBusy} onclick={saveWeekSchedule}
-                    >Save Week Hours</Button
-                  >
-                </div>
-              </div>
-              <div class="w-full overflow-x-auto">
-                <div class="min-w-[360px] grid gap-2">
-                  <div
-                    class="grid grid-cols-[50px_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground"
-                  >
-                    <span>Day</span>
-                    <span>Start</span>
-                    <span>End</span>
+        <Accordion.Root type="single" collapsible class="rounded-md border" value="">
+          <Accordion.Item value="week-hours">
+            <Accordion.Trigger class="px-3 py-2 no-underline hover:no-underline">
+              Week Timing Override ({selectedWeekLabel})
+            </Accordion.Trigger>
+            <Accordion.Content>
+              <div class="border-t p-3 pt-2">
+                <div class="mb-2 flex flex-wrap items-start justify-between gap-2">
+                  <p class="text-muted-foreground text-xs">
+                    Edits here update both Work Logs and Timesheet for the selected week.
+                  </p>
+                  <div class="flex flex-wrap items-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={isBusy}
+                      onclick={resetWeekToDefault}>Use Default</Button
+                    >
+                    <Button size="sm" disabled={isBusy} onclick={saveWeekSchedule}
+                      >Save Week Hours</Button
+                    >
                   </div>
-                  {#each weekdays as day (day.key)}
-                    <div class="grid grid-cols-[50px_1fr_1fr] items-center gap-2">
-                      <span class="text-xs font-medium">{day.label}</span>
-                      <Input type="time" bind:value={weekOverrideDraft[day.key].start} />
-                      <Input type="time" bind:value={weekOverrideDraft[day.key].end} />
+                </div>
+                <div class="w-full overflow-x-auto">
+                  <div class="min-w-[360px] grid gap-2">
+                    <div
+                      class="grid grid-cols-[50px_1fr_1fr] gap-2 text-xs font-medium text-muted-foreground"
+                    >
+                      <span>Day</span>
+                      <span>Start</span>
+                      <span>End</span>
                     </div>
-                  {/each}
+                    {#each weekdays as day (day.key)}
+                      <div class="grid grid-cols-[50px_1fr_1fr] items-center gap-2">
+                        <span class="text-xs font-medium">{day.label}</span>
+                        <Input type="time" bind:value={weekOverrideDraft[day.key].start} />
+                        <Input type="time" bind:value={weekOverrideDraft[day.key].end} />
+                      </div>
+                    {/each}
+                  </div>
                 </div>
               </div>
-            </div>
-          </Accordion.Content>
-        </Accordion.Item>
-      </Accordion.Root>
+            </Accordion.Content>
+          </Accordion.Item>
+        </Accordion.Root>
       {/if}
     </div>
 
@@ -990,7 +1070,9 @@
           </p>
         {:else}
           <div class="min-h-0 flex-1 overflow-auto rounded-xl border">
-            <div class="grid grid-cols-[10rem_8rem_8rem_minmax(12rem,1fr)_10rem] gap-2 border-b bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+            <div
+              class="grid grid-cols-[10rem_8rem_8rem_minmax(12rem,1fr)_10rem] gap-2 border-b bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground"
+            >
               <div>Time</div>
               <div>Duration</div>
               <div>Type</div>
@@ -1000,11 +1082,15 @@
             <div class="w-full overflow-x-auto">
               <div class="min-w-[640px] space-y-1 p-2">
                 {#each dayTimeline.rows as row (`${row.startIso}-${row.endIso}-${row.kind}`)}
-                  <div class="grid grid-cols-[10rem_8rem_8rem_minmax(12rem,1fr)_10rem] items-center gap-2 rounded-md px-2 py-2 text-sm">
+                  <div
+                    class="grid grid-cols-[10rem_8rem_8rem_minmax(12rem,1fr)_10rem] items-center gap-2 rounded-md px-2 py-2 text-sm"
+                  >
                     <div>{row.startLabel} - {row.endLabel}</div>
                     <div class="text-muted-foreground">{row.durationLabel}</div>
                     <div>
-                      <span class={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${kindBadgeClass(row.kind)}`}>
+                      <span
+                        class={`inline-flex rounded px-2 py-0.5 text-xs font-semibold ${kindBadgeClass(row.kind)}`}
+                      >
                         {row.kind}
                       </span>
                     </div>
