@@ -24,8 +24,12 @@ export const buildWorklogDraft = (input: {
   const sessionStart = new Date(input.session.startIso)
   const sessionEnd = new Date(input.session.endIso ?? input.nowIso)
 
-  const requestStartMs = input.rangeStartIso ? new Date(input.rangeStartIso).getTime() : sessionStart.getTime()
-  const requestEndMs = input.rangeEndIso ? new Date(input.rangeEndIso).getTime() : sessionEnd.getTime()
+  const requestStartMs = input.rangeStartIso
+    ? new Date(input.rangeStartIso).getTime()
+    : sessionStart.getTime()
+  const requestEndMs = input.rangeEndIso
+    ? new Date(input.rangeEndIso).getTime()
+    : sessionEnd.getTime()
 
   const clippedStartMs = Number.isFinite(requestStartMs)
     ? Math.max(sessionStart.getTime(), requestStartMs)

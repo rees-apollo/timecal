@@ -33,7 +33,13 @@
 
   type CalendarLinkLike = {
     eventId: string
-    classification?: 'primary-task' | 'other-ticket' | 'off-task' | 'custom-task' | 'ignored' | 'unclassified'
+    classification?:
+      | 'primary-task'
+      | 'other-ticket'
+      | 'off-task'
+      | 'custom-task'
+      | 'ignored'
+      | 'unclassified'
     offTaskCategory?: string
     customTaskCategory?: string
   }

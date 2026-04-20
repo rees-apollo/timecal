@@ -455,44 +455,48 @@ function registerIpcHandlers(): void {
     })
   })
 
-  ipcMain.handle('worklog:buildDraft', async (_, input?: BuildWorklogDraftInput): Promise<WorklogDraft> => {
-    const snapshot = getSnapshot()
-    const request = input ?? {}
-    const latestJiraSession = [...snapshot.state.sessions]
-      .reverse()
-      .find(
-        (item) =>
-          (item.taskType ?? inferTaskType(item.jiraIssueKey)) === 'jira' &&
-          (Boolean(item.endIso) || item.id === snapshot.activeSession?.id)
-      )
-    const session = request.sessionId
-      ? snapshot.state.sessions.find((item) => item.id === request.sessionId)
-      : latestJiraSession
+  ipcMain.handle(
+    'worklog:buildDraft',
+    async (_, input?: BuildWorklogDraftInput): Promise<WorklogDraft> => {
+      const snapshot = getSnapshot()
+      const request = input ?? {}
+      const latestJiraSession = [...snapshot.state.sessions]
+        .reverse()
+        .find(
+          (item) =>
+            (item.taskType ?? inferTaskType(item.jiraIssueKey)) === 'jira' &&
+            (Boolean(item.endIso) || item.id === snapshot.activeSession?.id)
+        )
+      const session = request.sessionId
+        ? snapshot.state.sessions.find((item) => item.id === request.sessionId)
+        : latestJiraSession
 
-    if (!session) {
-      throw new Error('No session found to build a worklog draft.')
+      if (!session) {
+        throw new Error('No session found to build a worklog draft.')
+      }
+
+      if ((session.taskType ?? inferTaskType(session.jiraIssueKey)) !== 'jira') {
+        throw new Error('Only Jira tasks can be drafted into a Jira worklog.')
+      }
+
+      const workingHours = request.weekStartKey
+        ? (snapshot.state.weeklyWorkingHoursOverrides[request.weekStartKey] ??
+          snapshot.state.settings.workingHours)
+        : (snapshot.state.weeklyWorkingHoursOverrides[
+            getWeekStartKey(new Date(session.startIso))
+          ] ?? snapshot.state.settings.workingHours)
+
+      return buildWorklogDraft({
+        session,
+        nowIso: new Date().toISOString(),
+        calendarEvents: snapshot.state.calendarEvents,
+        calendarLinks: snapshot.state.calendarLinks,
+        workingHours,
+        rangeStartIso: request.rangeStartIso,
+        rangeEndIso: request.rangeEndIso
+      })
     }
-
-    if ((session.taskType ?? inferTaskType(session.jiraIssueKey)) !== 'jira') {
-      throw new Error('Only Jira tasks can be drafted into a Jira worklog.')
-    }
-
-    const workingHours = request.weekStartKey
-      ? snapshot.state.weeklyWorkingHoursOverrides[request.weekStartKey] ??
-        snapshot.state.settings.workingHours
-      : snapshot.state.weeklyWorkingHoursOverrides[getWeekStartKey(new Date(session.startIso))] ??
-        snapshot.state.settings.workingHours
-
-    return buildWorklogDraft({
-      session,
-      nowIso: new Date().toISOString(),
-      calendarEvents: snapshot.state.calendarEvents,
-      calendarLinks: snapshot.state.calendarLinks,
-      workingHours,
-      rangeStartIso: request.rangeStartIso,
-      rangeEndIso: request.rangeEndIso
-    })
-  })
+  )
 
   ipcMain.handle('worklog:push', async (_, draft: WorklogDraft) => {
     const settings = ensureJiraSettings()
