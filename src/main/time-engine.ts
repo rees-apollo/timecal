@@ -7,11 +7,6 @@ import type {
 } from '../shared/types'
 import { calculateWorkingSecondsBetween } from '../shared/working-hours'
 
-const formatDuration = (seconds: number): string => {
-  const minutes = Math.max(1, Math.round(seconds / 60))
-  return `${minutes}m`
-}
-
 export const buildWorklogDraft = (input: {
   session: TaskSession
   nowIso: string
@@ -20,6 +15,7 @@ export const buildWorklogDraft = (input: {
   workingHours: WorkingHoursSchedule
   rangeStartIso?: string
   rangeEndIso?: string
+  alreadyLoggedSeconds?: number
 }): WorklogDraft => {
   const sessionStart = new Date(input.session.startIso)
   const sessionEnd = new Date(input.session.endIso ?? input.nowIso)
@@ -85,11 +81,16 @@ export const buildWorklogDraft = (input: {
   }
 
   const activeSeconds = Math.max(0, totalWorkingSeconds - blockedWorkingSeconds)
+  const alreadyLoggedSeconds = Math.max(0, Math.floor(input.alreadyLoggedSeconds ?? 0))
+  const remainingSeconds = Math.max(0, activeSeconds - alreadyLoggedSeconds)
 
   return {
     issueKey: input.session.jiraIssueKey,
     startedIso: draftStart.toISOString(),
-    timeSpentSeconds: activeSeconds,
-    comment: ''
+    timeSpentSeconds: remainingSeconds,
+    comment: '',
+    sourceSessionId: input.session.id,
+    rangeStartIso: input.rangeStartIso,
+    rangeEndIso: input.rangeEndIso
   }
 }

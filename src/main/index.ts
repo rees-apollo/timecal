@@ -20,6 +20,7 @@ import type {
   SetCalendarClassificationInput,
   StartTaskInput,
   TaskSession,
+  UpdateTaskTransitionsInput,
   UpdatePlanningEventInput,
   WorklogDraft
 } from '../shared/types'
@@ -47,6 +48,14 @@ const isOffTaskSource = (source: string | undefined): boolean =>
 
 const inferTaskType = (issueKey: string): 'jira' | 'custom' =>
   JIRA_ISSUE_KEY_REGEX.test(issueKey.trim().toUpperCase()) ? 'jira' : 'custom'
+
+const sameRange = (
+  entry: { rangeStartIso?: string; rangeEndIso?: string },
+  rangeStartIso?: string,
+  rangeEndIso?: string
+): boolean =>
+  (entry.rangeStartIso ?? '') === (rangeStartIso ?? '') &&
+  (entry.rangeEndIso ?? '') === (rangeEndIso ?? '')
 
 const getActiveSession = (): TaskSession | undefined => {
   const state = stateStore.get()
@@ -134,6 +143,72 @@ const stopActiveSession = (): AppSnapshot => {
       active.endIso = new Date().toISOString()
     }
     state.activeSessionId = undefined
+  })
+}
+
+const updateTaskTransitions = (input: UpdateTaskTransitionsInput): AppSnapshot => {
+  return withStateUpdate(() => {
+    const state = stateStore.get()
+    const existingById = new Map(state.sessions.map((session) => [session.id, session]))
+
+    const normalized = [...input.transitions]
+      .map((transition) => ({
+        id: transition.id?.trim() || crypto.randomUUID(),
+        issueKey: transition.issueKey.trim(),
+        summary: transition.summary.trim(),
+        bookingCode: transition.bookingCode?.trim() || undefined,
+        taskType: transition.taskType,
+        startIso: transition.startIso
+      }))
+      .filter((transition) => transition.issueKey.length > 0)
+
+    normalized.sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime())
+
+    const rebuilt: TaskSession[] = []
+    for (let index = 0; index < normalized.length; index += 1) {
+      const row = normalized[index]
+      const startMs = new Date(row.startIso).getTime()
+      if (Number.isNaN(startMs)) {
+        throw new Error(`Invalid transition start time for ${row.issueKey}.`)
+      }
+
+      const next = normalized[index + 1]
+      const nextStartMs = next ? new Date(next.startIso).getTime() : null
+      if (nextStartMs !== null && Number.isNaN(nextStartMs)) {
+        throw new Error(`Invalid transition start time for ${next.issueKey}.`)
+      }
+      if (nextStartMs !== null && nextStartMs <= startMs) {
+        throw new Error('Each transition must have a unique start time in chronological order.')
+      }
+
+      const existing = existingById.get(row.id)
+      const session: TaskSession = {
+        id: row.id,
+        jiraIssueKey: row.issueKey,
+        jiraIssueSummary: row.summary || row.issueKey,
+        bookingCode: row.bookingCode,
+        taskType: row.taskType ?? inferTaskType(row.issueKey),
+        startIso: row.startIso
+      }
+
+      if (next) {
+        session.endIso = next.startIso
+      } else if (existing?.endIso && new Date(existing.endIso).getTime() > startMs) {
+        session.endIso = existing.endIso
+      }
+
+      rebuilt.push(session)
+    }
+
+    state.sessions = rebuilt
+    const last = rebuilt[rebuilt.length - 1]
+    state.activeSessionId = last && !last.endIso ? last.id : undefined
+
+    const jiraKeys = rebuilt
+      .filter((session) => (session.taskType ?? inferTaskType(session.jiraIssueKey)) === 'jira')
+      .map((session) => session.jiraIssueKey)
+      .reverse()
+    state.recentIssueKeys = [...new Set([...jiraKeys, ...state.recentIssueKeys])].slice(0, 8)
   })
 }
 
@@ -356,6 +431,10 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('task:switch', async (_, input: StartTaskInput) => startSession(input))
 
+  ipcMain.handle('task:updateTransitions', async (_, input: UpdateTaskTransitionsInput) =>
+    updateTaskTransitions(input)
+  )
+
   ipcMain.handle('task:stopActive', async () => stopActiveSession())
 
   ipcMain.handle('calendar:pull', async () => {
@@ -486,6 +565,14 @@ function registerIpcHandlers(): void {
             getWeekStartKey(new Date(session.startIso))
           ] ?? snapshot.state.settings.workingHours)
 
+      const alreadyLoggedSeconds = snapshot.state.loggedWorklogs
+        .filter(
+          (entry) =>
+            entry.sourceSessionId === session.id &&
+            sameRange(entry, request.rangeStartIso, request.rangeEndIso)
+        )
+        .reduce((sum, entry) => sum + entry.timeSpentSeconds, 0)
+
       return buildWorklogDraft({
         session,
         nowIso: new Date().toISOString(),
@@ -493,7 +580,8 @@ function registerIpcHandlers(): void {
         calendarLinks: snapshot.state.calendarLinks,
         workingHours,
         rangeStartIso: request.rangeStartIso,
-        rangeEndIso: request.rangeEndIso
+        rangeEndIso: request.rangeEndIso,
+        alreadyLoggedSeconds
       })
     }
   )
@@ -510,6 +598,19 @@ function registerIpcHandlers(): void {
         timeSpentSeconds: draft.timeSpentSeconds,
         comment: draft.comment
       }
+    })
+
+    withStateUpdate(() => {
+      stateStore.get().loggedWorklogs.push({
+        id: crypto.randomUUID(),
+        issueKey: draft.issueKey,
+        startedIso: draft.startedIso,
+        timeSpentSeconds: Math.max(0, Math.floor(draft.timeSpentSeconds)),
+        loggedAtIso: new Date().toISOString(),
+        sourceSessionId: draft.sourceSessionId,
+        rangeStartIso: draft.rangeStartIso,
+        rangeEndIso: draft.rangeEndIso
+      })
     })
 
     return true

@@ -28,6 +28,18 @@ const stringifyUnknown = (value: unknown): string | undefined => {
   return undefined
 }
 
+const pad = (value: number, width: number): string => String(value).padStart(width, '0')
+
+const toJiraStartedFormat = (value: string): string => {
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) {
+    throw new Error(`Invalid started timestamp: ${value}`)
+  }
+
+  // Jira expects yyyy-MM-dd'T'HH:mm:ss.SSSZ where Z is an RFC822 offset (e.g. +0000).
+  return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1, 2)}-${pad(date.getUTCDate(), 2)}T${pad(date.getUTCHours(), 2)}:${pad(date.getUTCMinutes(), 2)}:${pad(date.getUTCSeconds(), 2)}.${pad(date.getUTCMilliseconds(), 3)}+0000`
+}
+
 export class JiraClient {
   async searchIssues(input: {
     baseUrl: string
@@ -132,6 +144,7 @@ export class JiraClient {
     worklog: PushWorklogInput
   }): Promise<void> {
     const url = `${ensureBaseUrl(input.baseUrl)}/rest/api/3/issue/${encodeURIComponent(input.worklog.issueKey)}/worklog`
+    const started = toJiraStartedFormat(input.worklog.startedIso)
     const response = await fetch(url, {
       method: 'POST',
       headers: {
@@ -140,7 +153,7 @@ export class JiraClient {
         Authorization: jiraAuthHeader(input.email, input.apiToken)
       },
       body: JSON.stringify({
-        started: input.worklog.startedIso,
+        started,
         timeSpentSeconds: input.worklog.timeSpentSeconds,
         comment: {
           type: 'doc',

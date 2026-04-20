@@ -10,6 +10,7 @@
     WorklogDraft
   } from '../../shared/types'
   import { DEFAULT_SETTINGS } from '../../shared/defaults'
+  import { getWeekStartKey, sanitizeWorkingHoursSchedule } from '../../shared/working-hours'
   import MainCalendarView from './components/MainCalendarView.svelte'
   import ReportDialog from './components/ReportDialog.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
@@ -57,7 +58,14 @@
   let reportDialogOpen = $state(false)
   let transitionsDialogOpen = $state(false)
   let taskSearchTab = $state<'jira' | 'custom'>('jira')
+  let calendarWeekStartKey = $state(getWeekStartKey(new Date()))
   const isDarkMode = $derived(mode.current === 'dark')
+  const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
+  const effectiveCalendarWorkingHours = $derived(
+    sanitizeWorkingHoursSchedule(
+      weeklyWorkingHoursOverrides[calendarWeekStartKey] ?? settings.workingHours
+    )
+  )
 
   const activeIssueKey = $derived(snapshot?.activeSession?.jiraIssueKey ?? '')
   const activeIssueLabel = $derived.by(() => {
@@ -90,6 +98,10 @@
 
   const toggleThemeMode = (): void => {
     setMode(isDarkMode ? 'light' : 'dark')
+  }
+
+  const handleCalendarDisplayedWeekChange = (weekStartKey: string): void => {
+    calendarWeekStartKey = weekStartKey
   }
 
   const applySnapshot = (next: AppSnapshot): void => {
@@ -376,7 +388,8 @@
       {updatePlanningEvent}
       {deletePlanningEvent}
       sessions={snapshot?.state.sessions ?? []}
-      workingHours={settings.workingHours}
+      workingHours={effectiveCalendarWorkingHours}
+      onDisplayedWeekStartChange={handleCalendarDisplayedWeekChange}
       {getClassification}
       {getCustomTaskCategory}
       {getEventColor}
@@ -504,6 +517,7 @@
   {jiraResults}
   customTaskCategories={settings.customTaskCategories}
   workingHours={settings.workingHours}
+  {weeklyWorkingHoursOverrides}
   {isBusy}
   onSave={saveTaskTransitions}
 />

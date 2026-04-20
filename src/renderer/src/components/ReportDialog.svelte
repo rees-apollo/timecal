@@ -53,6 +53,7 @@
   const manualCustomTaskEntries = $derived(snapshot?.state.manualCustomTaskEntries ?? [])
   const customTaskCategories = $derived(snapshot?.state.settings.customTaskCategories ?? [])
   const activeSessionId = $derived(snapshot?.activeSession?.id ?? snapshot?.state.activeSessionId ?? '')
+  const loggedWorklogs = $derived(snapshot?.state.loggedWorklogs ?? [])
 
   // ── All Tasks timeline ──────────────────────────────────────────────────────
 
@@ -452,15 +453,40 @@
     return Math.max(0, totalWorkingSeconds - blockedWorkingSeconds)
   }
 
-  const formatSessionDurationForReports = (session: TaskSession): string => {
+  type SessionWorklogMinutes = {
+    remaining: number
+    logged: number
+  }
+
+  const getSessionWorklogMinutes = (session: TaskSession): SessionWorklogMinutes => {
     const start = new Date(session.startIso)
     const end = new Date(session.endIso ?? new Date().toISOString())
     const clippedStart = new Date(Math.max(start.getTime(), selectedWeekStart.getTime()))
     const clippedEnd = new Date(Math.min(end.getTime(), selectedWeekEnd.getTime()))
-    if (clippedEnd <= clippedStart) return '0m'
+    if (clippedEnd <= clippedStart) return { remaining: 0, logged: 0 }
 
-    const mins = Math.max(0, Math.floor(calculateActiveTaskSecondsForRange(clippedStart, clippedEnd) / 60))
-    return `${mins}m`
+    const requestRangeStartIso = selectedWeekStart.toISOString()
+    const requestRangeEndIso = selectedWeekEnd.toISOString()
+
+    const activeSeconds = calculateActiveTaskSecondsForRange(clippedStart, clippedEnd)
+    const loggedSeconds = loggedWorklogs
+      .filter(
+        (entry) =>
+          entry.sourceSessionId === session.id &&
+          (entry.rangeStartIso ?? '') === requestRangeStartIso &&
+          (entry.rangeEndIso ?? '') === requestRangeEndIso
+      )
+      .reduce((sum, entry) => sum + entry.timeSpentSeconds, 0)
+
+    return {
+      remaining: Math.max(0, Math.floor((activeSeconds - loggedSeconds) / 60)),
+      logged: Math.max(0, Math.floor(loggedSeconds / 60))
+    }
+  }
+
+  const formatSessionDurationForReports = (session: TaskSession): string => {
+    const minutes = getSessionWorklogMinutes(session)
+    return `${minutes.remaining}m [logged ${minutes.logged}m]`
   }
 
   const selectedWeekLabel = $derived(

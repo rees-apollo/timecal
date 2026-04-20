@@ -7,6 +7,7 @@ export const createDefaultState = (): PersistedState => ({
   settings: { ...DEFAULT_SETTINGS },
   weeklyWorkingHoursOverrides: {},
   sessions: [],
+  loggedWorklogs: [],
   recentIssueKeys: [],
   calendarEvents: [],
   calendarLinks: [],

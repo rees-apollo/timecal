@@ -4,7 +4,13 @@ import { join } from 'path'
 import { createDefaultState } from './defaults'
 import { autoCustomTaskCategoryColor } from '../shared/off-task-colors'
 import { sanitizeWorkingHoursSchedule } from '../shared/working-hours'
-import type { CalendarEvent, CalendarEventLink, PersistedState, TaskSession } from '../shared/types'
+import type {
+  CalendarEvent,
+  CalendarEventLink,
+  LoggedWorklogEntry,
+  PersistedState,
+  TaskSession
+} from '../shared/types'
 
 const STATE_FILE_NAME = 'timecal-state.json'
 
@@ -16,6 +22,7 @@ type LegacyState = Partial<PersistedState> & {
   settings?: LegacySettings
   calendarEvents?: unknown[]
   calendarLinks?: unknown[]
+  loggedWorklogs?: unknown[]
   manualOffTaskEntries?: PersistedState['manualCustomTaskEntries']
 }
 
@@ -112,6 +119,36 @@ const sanitizeState = (raw: unknown): PersistedState => {
           })
           return acc
         }, [])
+      : [],
+    loggedWorklogs: Array.isArray(candidate.loggedWorklogs)
+      ? candidate.loggedWorklogs
+          .map<LoggedWorklogEntry | null>((entry) => {
+            if (!isRecord(entry)) return null
+            if (
+              typeof entry.id !== 'string' ||
+              typeof entry.issueKey !== 'string' ||
+              typeof entry.startedIso !== 'string' ||
+              typeof entry.timeSpentSeconds !== 'number' ||
+              !Number.isFinite(entry.timeSpentSeconds) ||
+              typeof entry.loggedAtIso !== 'string'
+            ) {
+              return null
+            }
+
+            return {
+              id: entry.id,
+              issueKey: entry.issueKey,
+              startedIso: entry.startedIso,
+              timeSpentSeconds: Math.max(0, Math.floor(entry.timeSpentSeconds)),
+              loggedAtIso: entry.loggedAtIso,
+              sourceSessionId:
+                typeof entry.sourceSessionId === 'string' ? entry.sourceSessionId : undefined,
+              rangeStartIso:
+                typeof entry.rangeStartIso === 'string' ? entry.rangeStartIso : undefined,
+              rangeEndIso: typeof entry.rangeEndIso === 'string' ? entry.rangeEndIso : undefined
+            }
+          })
+          .filter((entry): entry is LoggedWorklogEntry => entry !== null)
       : [],
     recentIssueKeys: Array.isArray(candidate.recentIssueKeys) ? candidate.recentIssueKeys : [],
     calendarEvents: Array.isArray(candidate.calendarEvents)

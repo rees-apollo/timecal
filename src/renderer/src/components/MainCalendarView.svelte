@@ -22,6 +22,7 @@
     deletePlanningEvent,
     sessions = [],
     workingHours,
+    onDisplayedWeekStartChange,
     getClassification,
     getCustomTaskCategory,
     getEventColor
@@ -50,6 +51,7 @@
     deletePlanningEvent: (id: string) => Promise<void>
     sessions?: TaskSession[]
     workingHours: WorkingHoursSchedule
+    onDisplayedWeekStartChange: (weekStartKey: string) => void
     getClassification: (eventId: string) => CalendarEventClassification
     getCustomTaskCategory: (eventId: string) => string | undefined
     getEventColor: (eventId: string) => string
@@ -96,6 +98,7 @@
     {updatePlanningEvent}
     {sessions}
     {workingHours}
+    {onDisplayedWeekStartChange}
     onEventClick={(payload) => {
       selectedCalendarEventId = payload.id
       selectedEventAnchorRect = payload.anchorRect

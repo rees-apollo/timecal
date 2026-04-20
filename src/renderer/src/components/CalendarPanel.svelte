@@ -7,6 +7,7 @@
   import { createEventsServicePlugin } from '@schedule-x/events-service'
   import { Temporal } from 'temporal-polyfill'
   import {
+    getWeekStartKey,
     getCalendarDayBoundaries,
     getWorkingTimeSegments,
     sanitizeWorkingHoursSchedule
@@ -60,6 +61,7 @@
     getEventColor,
     createPlanningEvent,
     updatePlanningEvent,
+    onDisplayedWeekStartChange,
     onEventClick
   }: {
     calendarEvents?: CalendarEvent[]
@@ -69,7 +71,13 @@
     workingHours: WorkingHoursSchedule
     getClassification: (
       eventId: string
-    ) => 'primary-task' | 'other-ticket' | 'off-task' | 'custom-task' | 'unclassified'
+    ) =>
+      | 'primary-task'
+      | 'other-ticket'
+      | 'off-task'
+      | 'custom-task'
+      | 'ignored'
+      | 'unclassified'
     getCustomTaskCategory: (eventId: string) => string | undefined
     getEventColor: (eventId: string) => string
     createPlanningEvent: (
@@ -83,6 +91,7 @@
       endIso: string,
       plannedMinutes?: number | null
     ) => Promise<void>
+    onDisplayedWeekStartChange: (weekStartKey: string) => void
     onEventClick: (payload: { id: string; anchorRect: AnchorRect | null }) => void
   } = $props()
 
@@ -122,6 +131,54 @@
       container: string
       onContainer: string
     }
+  }
+
+  const HHMM_REGEX = /^([01]\d|2[0-3]):([0-5]\d)$/
+  const SCHEDULE_X_DAY_BOUNDARY_REGEX = /^(?:[01]\d|2[0-4]):00$/
+  const SAFE_DAY_BOUNDARIES = { start: '06:00', end: '20:00' } as const
+
+  const toBoundaryMinutes = (value: string): number | null => {
+    if (!SCHEDULE_X_DAY_BOUNDARY_REGEX.test(value)) return null
+    const [hour, minute] = value.split(':').map((part) => Number.parseInt(part, 10))
+    if (!Number.isInteger(hour) || !Number.isInteger(minute)) return null
+    if (hour < 0 || hour > 24 || minute !== 0) return null
+    return hour * 60
+  }
+
+  const toScheduleXBoundary = (value: unknown, role: 'start' | 'end'): string | null => {
+    if (typeof value !== 'string') return null
+    const trimmed = value.trim()
+    const match = trimmed.match(HHMM_REGEX)
+    if (!match) return null
+
+    const hour = Number.parseInt(match[1], 10)
+    const minute = Number.parseInt(match[2], 10)
+
+    if (role === 'start') {
+      return `${String(hour).padStart(2, '0')}:00`
+    }
+
+    if (minute === 0) return `${String(hour).padStart(2, '0')}:00`
+    if (hour === 23) return '24:00'
+    return `${String(hour + 1).padStart(2, '0')}:00`
+  }
+
+  const normalizeDayBoundaries = (
+    candidate: { start: string; end: string }
+  ): { start: string; end: string } => {
+    const start = toScheduleXBoundary(candidate.start, 'start')
+    const end = toScheduleXBoundary(candidate.end, 'end')
+    if (!start || !end) {
+      return { ...SAFE_DAY_BOUNDARIES }
+    }
+
+    const startMinutes = toBoundaryMinutes(start)
+    const endMinutes = toBoundaryMinutes(end)
+    if (startMinutes === null || endMinutes === null || startMinutes >= endMinutes) {
+      return { ...SAFE_DAY_BOUNDARIES }
+    }
+
+    return { start, end }
   }
 
   const hexToRgb = (hex: string): { r: number; g: number; b: number } => {
@@ -298,6 +355,9 @@
           onClickDate: (date: Temporal.PlainDate): void => {
             const next = planningWindowFromDate(date)
             void createPlanningEvent(next.startIso, next.endIso)
+          },
+          onRangeUpdate: (range): void => {
+            onDisplayedWeekStartChange(getWeekStartKey(new Date(range.start.epochMilliseconds)))
           },
           onBeforeEventUpdate: (oldEvent: ScheduleXEventLike): boolean => {
             return (
@@ -556,8 +616,9 @@
 
   $effect(() => {
     const safeSchedule = sanitizeWorkingHoursSchedule(workingHours)
+    const dayBoundaries = normalizeDayBoundaries(getCalendarDayBoundaries(safeSchedule))
     const newCache = JSON.stringify({
-      x: getCalendarDayBoundaries(safeSchedule),
+      x: dayBoundaries,
       scheduleXCalendars,
       mode: mode.current,
       gridHeight
@@ -567,7 +628,7 @@
       calendarInstance = buildCalendarInstance(
         gridHeight,
         scheduleXCalendars,
-        getCalendarDayBoundaries(safeSchedule),
+        dayBoundaries,
         mode.current == 'dark'
       )
     }

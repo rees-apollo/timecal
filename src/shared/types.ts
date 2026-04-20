@@ -105,6 +105,20 @@ export interface WorklogDraft {
   startedIso: string
   timeSpentSeconds: number
   comment: string
+  sourceSessionId?: string
+  rangeStartIso?: string
+  rangeEndIso?: string
+}
+
+export interface LoggedWorklogEntry {
+  id: string
+  issueKey: string
+  startedIso: string
+  timeSpentSeconds: number
+  loggedAtIso: string
+  sourceSessionId?: string
+  rangeStartIso?: string
+  rangeEndIso?: string
 }
 
 export interface BuildWorklogDraftInput {
@@ -119,6 +133,7 @@ export interface PersistedState {
   weeklyWorkingHoursOverrides: WeeklyWorkingHoursOverrides
   activeSessionId?: string
   sessions: TaskSession[]
+  loggedWorklogs: LoggedWorklogEntry[]
   recentIssueKeys: string[]
   calendarLastPulledIso?: string
   calendarCacheStartIso?: string

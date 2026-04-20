@@ -16,6 +16,8 @@
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
   import {
     calculateWorkingSecondsBetween,
+    getWeekStartDate,
+    getWeekStartKey,
     sanitizeWorkingHoursSchedule
   } from '../../../shared/working-hours'
 
@@ -34,6 +36,7 @@
     jiraResults = [],
     customTaskCategories = [],
     workingHours,
+    weeklyWorkingHoursOverrides = {},
     isBusy = false,
     onSave
   }: {
@@ -42,11 +45,41 @@
     jiraResults?: JiraIssue[]
     customTaskCategories?: CustomTaskCategory[]
     workingHours: WorkingHoursSchedule
+    weeklyWorkingHoursOverrides?: Record<string, WorkingHoursSchedule>
     isBusy?: boolean
     onSave: (transitions: TaskTransitionInput[]) => Promise<void>
   } = $props()
 
-  const safeWorkingHours = $derived(sanitizeWorkingHoursSchedule(workingHours))
+  const defaultWorkingHours = $derived(sanitizeWorkingHoursSchedule(workingHours))
+
+  const getEffectiveWorkingHoursForDate = (date: Date): WorkingHoursSchedule => {
+    const weekStartKey = getWeekStartKey(date)
+    return sanitizeWorkingHoursSchedule(
+      weeklyWorkingHoursOverrides[weekStartKey] ?? defaultWorkingHours
+    )
+  }
+
+  const calculateWorkingSecondsWithWeeklyOverrides = (start: Date, end: Date): number => {
+    if (end <= start) return 0
+
+    let totalSeconds = 0
+    let cursor = new Date(start)
+
+    while (cursor < end) {
+      const weekStart = getWeekStartDate(cursor)
+      const nextWeekStart = new Date(weekStart)
+      nextWeekStart.setDate(nextWeekStart.getDate() + 7)
+
+      const intervalEnd = new Date(Math.min(end.getTime(), nextWeekStart.getTime()))
+      if (intervalEnd <= cursor) break
+
+      const schedule = getEffectiveWorkingHoursForDate(cursor)
+      totalSeconds += calculateWorkingSecondsBetween(cursor, intervalEnd, schedule)
+      cursor = intervalEnd
+    }
+
+    return totalSeconds
+  }
 
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
@@ -182,9 +215,7 @@
       if (Number.isNaN(end.getTime())) return null
 
       if (end <= start) return null
-      const totalMinutes = Math.round(
-        calculateWorkingSecondsBetween(start, end, safeWorkingHours) / 60
-      )
+      const totalMinutes = Math.round(calculateWorkingSecondsWithWeeklyOverrides(start, end) / 60)
       if (totalMinutes < 0) return null
       if (totalMinutes < 60) return `${totalMinutes}m`
       const hours = Math.floor(totalMinutes / 60)
