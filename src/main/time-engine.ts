@@ -86,13 +86,10 @@ export const buildWorklogDraft = (input: {
 
   const activeSeconds = Math.max(0, totalWorkingSeconds - blockedWorkingSeconds)
 
-  const bookingCodeText = input.session.bookingCode ? ` [${input.session.bookingCode}]` : ''
-  const comment = `${input.session.jiraIssueKey}${bookingCodeText} - focused work. ${formatDuration(activeSeconds)}.`
-
   return {
     issueKey: input.session.jiraIssueKey,
     startedIso: draftStart.toISOString(),
     timeSpentSeconds: activeSeconds,
-    comment
+    comment: ''
   }
 }
