@@ -1,0 +1,27 @@
+:root {
+  --shell-sand: #f5f2e8;
+  --shell-ink: #1f2d2a;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  font-weight: normal;
+}
+
+ul {
+  list-style: none;
+}
+
+body {
+  min-height: 100vh;
+  color: var(--shell-ink);
+  background: var(--shell-sand);
+  line-height: 1.6;
+  font-family: 'Nunito Sans Variable', sans-serif;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
