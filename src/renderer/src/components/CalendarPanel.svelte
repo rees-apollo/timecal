@@ -11,6 +11,7 @@
     getWorkingTimeSegments,
     sanitizeWorkingHoursSchedule
   } from '../../../shared/working-hours'
+  import { autoCustomTaskCategoryColor } from '../../../shared/off-task-colors'
   import '@schedule-x/theme-shadcn/dist/index.css'
   import { mode } from 'mode-watcher'
 
@@ -32,7 +33,7 @@
 
   type CalendarLinkLike = {
     eventId: string
-    classification?: 'primary-task' | 'other-ticket' | 'off-task' | 'custom-task' | 'unclassified'
+    classification?: 'primary-task' | 'other-ticket' | 'off-task' | 'custom-task' | 'ignored' | 'unclassified'
     offTaskCategory?: string
     customTaskCategory?: string
   }
@@ -202,6 +203,7 @@
   }
 
   const weekView = createViewWeek()
+  const calendarTimezone = Temporal.Now.timeZoneId()
 
   const temporalToIso = (
     value: Temporal.ZonedDateTime | Temporal.PlainDate,
@@ -247,12 +249,17 @@
   const isDayScopedOffTaskEvent = (event: CalendarEvent): boolean =>
     event.source === 'off-task' || event.source === 'planning'
 
+  type CalendarInstance = {
+    calendarApp: ReturnType<typeof createCalendar>
+    eventsServicePlugin: ReturnType<typeof createEventsServicePlugin>
+  }
+
   const buildCalendarInstance = (
     gridHeight: number,
     calendars: Record<string, ScheduleXCalendarPalette>,
     dayBoundaries: { start: string; end: string },
     darkMode = false
-  ) => {
+  ): CalendarInstance => {
     const eventsServicePlugin = createEventsServicePlugin()
     const dragAndDropPlugin = createDragAndDropPlugin(15)
     const resizePlugin = createResizePlugin(15)
@@ -261,6 +268,7 @@
       {
         views: [weekView],
         defaultView: weekView.name,
+        timezone: calendarTimezone,
         calendars,
         dayBoundaries: {
           start: dayBoundaries.start,
@@ -301,19 +309,16 @@
         }
       },
       [eventsServicePlugin, dragAndDropPlugin, resizePlugin]
-    )
+    ) as unknown as ReturnType<typeof createCalendar>
 
     return { calendarApp, eventsServicePlugin }
   }
-
-  type CalendarInstance = ReturnType<typeof buildCalendarInstance>
 
   let gridHeight = $state(840)
   let calendarInstance = $state<CalendarInstance | null>(null)
 
   function toTemporalZonedDateTime(iso: string): Temporal.ZonedDateTime {
-    const normalized = new Date(iso).toISOString().replace('Z', '+00:00[UTC]')
-    return Temporal.ZonedDateTime.from(normalized)
+    return Temporal.Instant.from(iso).toZonedDateTimeISO(calendarTimezone)
   }
 
   const scheduleXEvents = $derived(
@@ -330,9 +335,11 @@
             ? 'other-ticket'
             : classification === 'off-task' || classification === 'custom-task'
               ? 'custom-task'
-              : isDayScopedOffTaskEvent(event)
-                ? 'off-task'
-                : 'unclassified'
+              : classification === 'ignored'
+                ? 'ignored'
+                : isDayScopedOffTaskEvent(event)
+                  ? 'off-task'
+                  : 'unclassified'
       const colorHex = normalizeHex(getEventColor(eventId))
       const customTaskVisual = resolveCustomTaskCalendarVisual(customTaskCategory)
       const calendarId =
@@ -344,12 +351,16 @@
               ? 'primary'
               : eventType === 'other-ticket'
                 ? 'other-ticket'
-                : 'imported'
+                : eventType === 'ignored'
+                  ? 'ignored'
+                  : 'imported'
       const visualMeta: EventVisualMeta = {
         eventId,
         calendarId,
         colorHex: eventType === 'custom-task' ? customTaskVisual.colorHex : colorHex
       }
+
+      const isIgnored = eventType === 'ignored'
 
       if (isDayScopedOffTaskEvent(event)) {
         const planningWindow = toTemporalDateForPlanning(event.startIso, event.endIso)
@@ -363,21 +374,60 @@
           _options: {
             disableDND: true,
             disableResize: true,
-            additionalClasses: ['tc-event', 'tc-off-task-event']
+            additionalClasses: isIgnored
+              ? ['tc-event', 'tc-off-task-event', 'tc-ignored-event']
+              : ['tc-event', 'tc-off-task-event']
           }
         }
       }
+      const zonedStart = toTemporalZonedDateTime(event.startIso)
+      const zonedEnd = toTemporalZonedDateTime(event.endIso)
+
+      // Detect all-day events: start is exactly local midnight (Outlook whole-day events).
+      // Use PlainDate so ScheduleX assigns to the correct local date column rather than
+      // the UTC date, which may fall on the previous calendar day for UTC+ timezones.
+      const startIsMidnight =
+        zonedStart.hour === 0 &&
+        zonedStart.minute === 0 &&
+        zonedStart.second === 0 &&
+        zonedStart.millisecond === 0
+      if (startIsMidnight) {
+        const startDate = zonedStart.toPlainDate()
+        // Outlook all-day end is midnight of next day — subtract 1 day for inclusive end
+        const endIsMidnight =
+          zonedEnd.hour === 0 &&
+          zonedEnd.minute === 0 &&
+          zonedEnd.second === 0 &&
+          zonedEnd.millisecond === 0
+        const endDate = endIsMidnight
+          ? zonedEnd.toPlainDate().subtract({ days: 1 })
+          : zonedEnd.toPlainDate()
+        return {
+          id: event.id,
+          title: event.subject,
+          start: startDate,
+          end: endDate,
+          calendarId: visualMeta.calendarId,
+          source: event.source ?? 'imported',
+          _options: {
+            disableDND: true,
+            disableResize: true,
+            additionalClasses: isIgnored ? ['tc-event', 'tc-ignored-event'] : ['tc-event']
+          }
+        }
+      }
+
       return {
         id: event.id,
         title: event.subject,
-        start: toTemporalZonedDateTime(event.startIso),
-        end: toTemporalZonedDateTime(event.endIso),
+        start: zonedStart,
+        end: zonedEnd,
         calendarId: visualMeta.calendarId,
         source: event.source ?? 'imported',
         _options: {
           disableDND: true,
           disableResize: true,
-          additionalClasses: ['tc-event']
+          additionalClasses: isIgnored ? ['tc-event', 'tc-ignored-event'] : ['tc-event']
         }
       }
     })
@@ -398,18 +448,30 @@
       const start = new Date(session.startIso)
       const end = new Date(session.endIso ?? now.toISOString())
       const segments = getWorkingTimeSegments(start, end, safeSchedule)
+      const ticketKey = session.jiraIssueKey.trim()
+      const taskName = session.jiraIssueSummary.trim()
+      const shadedLabel =
+        taskName && taskName.toLowerCase() !== ticketKey.toLowerCase()
+          ? `${ticketKey} - ${taskName}`
+          : ticketKey
+      const ticketColorSeed = `${session.taskType ?? 'jira'}:${ticketKey}`
+      const ticketColor = autoCustomTaskCategoryColor(ticketColorSeed)
+      const borderColor = `color-mix(in oklab, ${ticketColor} 78%, #0f172a)`
+      const fillColor = `color-mix(in oklab, ${ticketColor} 32%, transparent)`
+      const stripeStrong = `color-mix(in oklab, ${ticketColor} 28%, transparent)`
+      const stripeSoft = `color-mix(in oklab, ${ticketColor} 12%, transparent)`
 
       for (const segment of segments) {
         backgroundEvents.push({
           start: toTemporalZonedDateTime(segment.start.toISOString()),
           end: toTemporalZonedDateTime(segment.end.toISOString()),
-          title: session.jiraIssueKey,
+          title: shadedLabel,
           style: {
-            backgroundColor:
-              (session.taskType ?? 'jira') === 'custom'
-                ? 'color-mix(in oklab, #d97706 18%, transparent)'
-                : 'color-mix(in oklab, #0f766e 18%, transparent)',
-            border: '1px solid color-mix(in oklab, #0f172a 22%, transparent)'
+            backgroundColor: fillColor,
+            backgroundImage: `repeating-linear-gradient(135deg, ${stripeStrong} 0 10px, ${stripeSoft} 10px 20px)`,
+            border: `1px solid ${borderColor}`,
+            borderLeft: `3px solid ${ticketColor}`,
+            boxShadow: 'inset 0 0 0 1px color-mix(in oklab, #f8fafc 16%, transparent)'
           }
         })
       }
@@ -432,9 +494,11 @@
             ? 'other-ticket'
             : classification === 'off-task' || classification === 'custom-task'
               ? 'custom-task'
-              : isDayScopedOffTaskEvent(event)
-                ? 'off-task'
-                : 'unclassified'
+              : classification === 'ignored'
+                ? 'ignored'
+                : isDayScopedOffTaskEvent(event)
+                  ? 'off-task'
+                  : 'unclassified'
       const colorHex = normalizeHex(getEventColor(eventId))
       const customTaskVisual = resolveCustomTaskCalendarVisual(customTaskCategory)
       return {
@@ -448,7 +512,9 @@
                 ? 'primary'
                 : eventType === 'other-ticket'
                   ? 'other-ticket'
-                  : 'imported',
+                  : eventType === 'ignored'
+                    ? 'ignored'
+                    : 'imported',
         colorHex: eventType === 'custom-task' ? customTaskVisual.colorHex : colorHex
       }
     })
@@ -459,7 +525,8 @@
       'off-task': toScheduleXPalette('off-task', '#4338ca'),
       primary: toScheduleXPalette('primary', '#0f766e'),
       'other-ticket': toScheduleXPalette('other-ticket', '#1d4ed8'),
-      imported: toScheduleXPalette('imported', '#64748b')
+      imported: toScheduleXPalette('imported', '#64748b'),
+      ignored: toScheduleXPalette('ignored', '#94a3b8')
     }
 
     for (const category of customTaskCategories) {
@@ -486,7 +553,8 @@
     const newCache = JSON.stringify({
       x: getCalendarDayBoundaries(safeSchedule),
       scheduleXCalendars,
-      mode: mode.current
+      mode: mode.current,
+      gridHeight
     })
     if (newCache !== cache) {
       cache = newCache
@@ -591,5 +659,39 @@
 <style>
   :global(.tc-off-task-event) {
     cursor: pointer;
+  }
+
+  :global(.tc-ignored-event) {
+    opacity: 0.45;
+    filter: grayscale(0.7);
+  }
+
+  :global(.tc-ignored-event .sx__event-title) {
+    text-decoration: line-through;
+    text-decoration-color: currentColor;
+  }
+
+  :global(.sx__time-grid-background-event) {
+    overflow: hidden;
+  }
+
+  :global(.sx__time-grid-background-event::before) {
+    content: attr(title);
+    position: absolute;
+    top: 4px;
+    left: 6px;
+    right: 6px;
+    display: block;
+    font-size: 0.65rem;
+    line-height: 1.1;
+    font-weight: 700;
+    letter-spacing: 0.01em;
+    color: color-mix(in oklab, #0f172a 86%, #f8fafc 14%);
+    text-shadow: 0 1px 0 color-mix(in oklab, #f8fafc 55%, transparent);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    overflow: hidden;
+    pointer-events: none;
+    opacity: 0.88;
   }
 </style>

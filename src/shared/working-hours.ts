@@ -37,22 +37,38 @@ const sanitizeDailyWorkingHours = (
 ): DailyWorkingHours => {
   if (!candidate || typeof candidate !== 'object') return fallback
 
-  const start =
-    typeof (candidate as { start?: unknown }).start === 'string'
-      ? ((candidate as { start: string }).start ?? '').trim()
-      : ''
-  const end =
-    typeof (candidate as { end?: unknown }).end === 'string'
-      ? ((candidate as { end: string }).end ?? '').trim()
-      : ''
+  const c = candidate as Record<string, unknown>
+  const start = typeof c.start === 'string' ? c.start.trim() : ''
+  const end = typeof c.end === 'string' ? c.end.trim() : ''
 
   const startValid = parseTimeToMinutes(start) !== null
   const endValid = parseTimeToMinutes(end) !== null
 
-  return {
+  const result: DailyWorkingHours = {
     start: startValid ? start : fallback.start,
     end: endValid ? end : fallback.end
   }
+
+  // Current format: lunchDurationMins
+  if (typeof c.lunchDurationMins === 'number' && c.lunchDurationMins >= 0) {
+    result.lunchDurationMins = Math.round(c.lunchDurationMins)
+  } else if (typeof c.lunchDurationMins === 'string') {
+    const parsed = Number.parseInt(c.lunchDurationMins, 10)
+    if (!Number.isNaN(parsed) && parsed >= 0) result.lunchDurationMins = parsed
+  } else {
+    // Legacy migration: derive duration from lunchStart/lunchEnd if present
+    const lunchStartRaw = typeof c.lunchStart === 'string' ? c.lunchStart.trim() : ''
+    const lunchEndRaw = typeof c.lunchEnd === 'string' ? c.lunchEnd.trim() : ''
+    if (lunchStartRaw && lunchEndRaw) {
+      const lunchStartMins = parseTimeToMinutes(lunchStartRaw)
+      const lunchEndMins = parseTimeToMinutes(lunchEndRaw)
+      if (lunchStartMins !== null && lunchEndMins !== null && lunchEndMins > lunchStartMins) {
+        result.lunchDurationMins = lunchEndMins - lunchStartMins
+      }
+    }
+  }
+
+  return result
 }
 
 export const sanitizeWorkingHoursSchedule = (candidate: unknown): WorkingHoursSchedule => {
@@ -90,25 +106,39 @@ export const getWeekStartKey = (date: Date): string => toLocalDateKey(getWeekSta
 
 const getWeekdayKey = (date: Date): WeekdayKey => DAY_INDEX_TO_KEY[date.getDay()]
 
-const getWindowForDate = (
+const getWindowsForDate = (
   date: Date,
   schedule: WorkingHoursSchedule
-): { start: Date; end: Date } | null => {
+): Array<{ start: Date; end: Date }> => {
   const dayKey = getWeekdayKey(date)
   const hours = schedule[dayKey]
-  if (!hours) return null
+  if (!hours) return []
 
   const startMinutes = parseTimeToMinutes(hours.start)
   const endMinutes = parseTimeToMinutes(hours.end)
-  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return null
+  if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) return []
 
-  const start = new Date(date)
-  start.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+  const workStart = new Date(date)
+  workStart.setHours(Math.floor(startMinutes / 60), startMinutes % 60, 0, 0)
+  const workEnd = new Date(date)
+  workEnd.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
 
-  const end = new Date(date)
-  end.setHours(Math.floor(endMinutes / 60), endMinutes % 60, 0, 0)
+  if (hours.lunchDurationMins && hours.lunchDurationMins > 0) {
+    const lunchStartMins = 12 * 60 // fixed at 12:00
+    const lunchEndMins = lunchStartMins + hours.lunchDurationMins
+    if (lunchStartMins > startMinutes && lunchEndMins < endMinutes) {
+      const lunchStart = new Date(date)
+      lunchStart.setHours(Math.floor(lunchStartMins / 60), lunchStartMins % 60, 0, 0)
+      const lunchEnd = new Date(date)
+      lunchEnd.setHours(Math.floor(lunchEndMins / 60), lunchEndMins % 60, 0, 0)
+      return [
+        { start: workStart, end: lunchStart },
+        { start: lunchEnd, end: workEnd }
+      ]
+    }
+  }
 
-  return { start, end }
+  return [{ start: workStart, end: workEnd }]
 }
 
 export interface WorkingTimeSegment {
@@ -133,8 +163,8 @@ export const getWorkingTimeSegments = (
   lastDay.setHours(0, 0, 0, 0)
 
   while (cursor.getTime() <= lastDay.getTime()) {
-    const window = getWindowForDate(cursor, schedule)
-    if (window) {
+    const windows = getWindowsForDate(cursor, schedule)
+    for (const window of windows) {
       const segmentStartMs = Math.max(start.getTime(), window.start.getTime())
       const segmentEndMs = Math.min(end.getTime(), window.end.getTime())
 
@@ -174,8 +204,9 @@ export const getCalendarDayBoundaries = (
 
   for (const day of WEEKDAY_KEYS) {
     const hours = schedule[day]
-    const startMinutes = parseTimeToMinutes(hours.start)
-    const endMinutes = parseTimeToMinutes(hours.end)
+    let startMinutes = parseTimeToMinutes(hours.start)
+    let endMinutes = parseTimeToMinutes(hours.end)
+
     if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) continue
 
     if (!found) {
@@ -189,5 +220,17 @@ export const getCalendarDayBoundaries = (
     if (hours.end > end) end = hours.end
   }
 
-  return { start, end }
+  const startMins = parseTimeToMinutes(start)
+  const endMins = parseTimeToMinutes(end)
+  const bufferAmount = 180 // minutes
+  const bufferedStart =
+    startMins !== null
+      ? `${String(Math.floor(Math.max(0, startMins - bufferAmount) / 60)).padStart(2, '0')}:${String(Math.max(0, startMins - bufferAmount) % 60).padStart(2, '0')}`
+      : start
+  const bufferedEnd =
+    endMins !== null
+      ? `${String(Math.floor(Math.min(1439, endMins + bufferAmount) / 60)).padStart(2, '0')}:${String(Math.min(1439, endMins + bufferAmount) % 60).padStart(2, '0')}`
+      : end
+
+  return { start: bufferedStart, end: bufferedEnd }
 }

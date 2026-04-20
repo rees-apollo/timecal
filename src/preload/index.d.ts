@@ -3,6 +3,7 @@ import type {
   AddManualCustomTaskInput,
   AppSettings,
   AppSnapshot,
+  BuildWorklogDraftInput,
   CreatePlanningEventInput,
   DeletePlanningEventInput,
   JiraIssue,
@@ -30,7 +31,7 @@ interface TimecalApi {
   updatePlanningEvent: (input: UpdatePlanningEventInput) => Promise<AppSnapshot>
   deletePlanningEvent: (input: DeletePlanningEventInput) => Promise<AppSnapshot>
   addManualCustomTask: (input: AddManualCustomTaskInput) => Promise<AppSnapshot>
-  buildWorklogDraft: (sessionId?: string) => Promise<WorklogDraft>
+  buildWorklogDraft: (input?: BuildWorklogDraftInput) => Promise<WorklogDraft>
   pushWorklog: (draft: WorklogDraft) => Promise<boolean>
   onStateChanged: (callback: (snapshot: AppSnapshot) => void) => () => void
 }

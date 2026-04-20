@@ -68,6 +68,7 @@
     if (c === 'primary-task') return 'default'
     if (c === 'custom-task') return 'destructive'
     if (c === 'other-ticket') return 'secondary'
+    if (c === 'ignored') return 'secondary'
     return 'outline'
   }
 
@@ -77,7 +78,6 @@
   const isOffTaskBlockEvent = (event: CalendarEvent | undefined): boolean =>
     event?.source === 'off-task' || event?.source === 'planning'
 
-  let popupRef = $state<HTMLDivElement | null>(null)
   let activeTab = $state<'jira' | 'custom'>('jira')
   let offTaskHoursInput = $state('')
   let lastEventId = $state('')
@@ -149,6 +149,12 @@
     onClose()
   }
 
+  const clearAssignedTask = async (): Promise<void> => {
+    if (!selectedCalendarEvent) return
+    delete otherTicketMap[selectedCalendarEvent.id]
+    await classifyEvent(selectedCalendarEvent.id, 'unclassified')
+  }
+
   const removeOffTaskEvent = async (): Promise<void> => {
     if (!isOffTaskBlockEvent(selectedCalendarEvent) || !selectedCalendarEvent) return
     await deletePlanningEvent(selectedCalendarEvent.id)
@@ -199,18 +205,14 @@
     )
   }
 
-  const handleWindowMouseDown = (event: MouseEvent): void => {
-    if (!selectedCalendarEvent || !popupRef) return
-    const target = event.target as Node | null
-    if (target && !popupRef.contains(target)) {
-      onClose()
+  const toggleIgnored = async (): Promise<void> => {
+    if (!selectedCalendarEvent) return
+    if (currentClassification === 'ignored') {
+      await classifyEvent(selectedCalendarEvent.id, 'unclassified')
+    } else {
+      await classifyEvent(selectedCalendarEvent.id, 'ignored')
     }
-  }
-
-  const handleWindowKeydown = (event: KeyboardEvent): void => {
-    if (event.key === 'Escape' && selectedCalendarEvent) {
-      onClose()
-    }
+    onClose()
   }
 
   const getPopupPosition = (
@@ -239,12 +241,9 @@
   const popupPosition = $derived(popupAnchorRect ? getPopupPosition(popupAnchorRect) : null)
 </script>
 
-<svelte:window onmousedown={handleWindowMouseDown} onkeydown={handleWindowKeydown} />
-
 {#if selectedCalendarEvent && popupAnchorRect && popupPosition}
   <div class="fixed inset-0 z-30 pointer-events-none" aria-hidden="true"></div>
   <div
-    bind:this={popupRef}
     class="fixed z-40 w-[min(360px,calc(100vw-1.5rem))] rounded-lg border bg-popover p-3 shadow-xl pointer-events-auto text-muted-foreground"
     style={`top: ${popupPosition.top}px; left: ${popupPosition.left}px; transform-origin: ${popupPosition.transformOrigin};`}
   >
@@ -293,18 +292,26 @@
           bind:activeTab
           onSelectJira={selectTicket}
           onSelectCustomTask={selectCustomTask}
+          onClearSelection={clearAssignedTask}
         />
       </FieldGroup>
     </div>
 
     <div class="mt-3 flex items-center justify-between gap-2">
-      {#if isOffTaskBlockEvent(selectedCalendarEvent)}
-        <Button size="sm" variant="destructive" onclick={removeOffTaskEvent}
-          >Delete off-task block</Button
-        >
-      {:else}
-        <span></span>
-      {/if}
+      <div class="flex items-center gap-2">
+        {#if !isOffTaskBlockEvent(selectedCalendarEvent)}
+          <Button size="sm" variant="outline" onclick={toggleIgnored}
+            >{currentClassification === 'ignored'
+              ? 'Include in calculations'
+              : 'Ignore in calculations'}</Button
+          >
+        {/if}
+        {#if isOffTaskBlockEvent(selectedCalendarEvent)}
+          <Button size="sm" variant="destructive" onclick={removeOffTaskEvent}
+            >Delete off-task block</Button
+          >
+        {/if}
+      </div>
       <Button size="sm" variant="ghost" onclick={onClose}>Close</Button>
     </div>
   </div>

@@ -4,6 +4,7 @@ import type {
   AddManualCustomTaskInput,
   AppSettings,
   AppSnapshot,
+  BuildWorklogDraftInput,
   CreatePlanningEventInput,
   DeletePlanningEventInput,
   JiraIssue,
@@ -43,8 +44,8 @@ const api = {
     electronAPI.ipcRenderer.invoke('calendar:planning:delete', input),
   addManualCustomTask: (input: AddManualCustomTaskInput): Promise<AppSnapshot> =>
     electronAPI.ipcRenderer.invoke('customTask:addManual', input),
-  buildWorklogDraft: (sessionId?: string): Promise<WorklogDraft> =>
-    electronAPI.ipcRenderer.invoke('worklog:buildDraft', sessionId),
+  buildWorklogDraft: (input?: BuildWorklogDraftInput): Promise<WorklogDraft> =>
+    electronAPI.ipcRenderer.invoke('worklog:buildDraft', input),
   pushWorklog: (draft: WorklogDraft): Promise<boolean> =>
     electronAPI.ipcRenderer.invoke('worklog:push', draft),
   onStateChanged: (callback: (snapshot: AppSnapshot) => void): (() => void) => {

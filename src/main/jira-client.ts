@@ -57,7 +57,6 @@ export class JiraClient {
     }
 
     const data = (await response.json()) as JiraIssuePickerResponse
-    console.log(data)
     const suggestions = (data.sections ?? [])
       .flatMap((section) => section.issues ?? [])
       .filter(

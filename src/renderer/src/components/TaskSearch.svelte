@@ -250,27 +250,29 @@
           class={triggerButtonClass}
           {disabled}
         >
-          <span class="truncate text-muted-foreground">{triggerLabel}</span>
-          {#if hasCurrentSelection && onClearSelection}
-            <span
-              role="button"
-              tabindex="0"
-              class="text-muted-foreground hover:text-foreground ms-2 inline-flex size-5 items-center justify-center rounded-sm"
-              aria-label="Clear selected task"
-              onclick={clearSelection}
-              onkeydown={async (event) => {
-                if (event.key !== 'Enter' && event.key !== ' ') return
-                await clearSelection(event)
-              }}
-            >
-              <XIcon class="size-3.5" />
-            </span>
-          {/if}
-          <ChevronsUpDownIcon class="ms-2 size-3.5 shrink-0 opacity-50" />
+          <span class="min-w-0 flex-1 truncate text-left text-muted-foreground">{triggerLabel}</span>
+          <span class="ml-2 inline-flex shrink-0 items-center gap-1">
+            {#if hasCurrentSelection && onClearSelection}
+              <span
+                role="button"
+                tabindex="0"
+                class="text-muted-foreground hover:text-foreground inline-flex size-5 items-center justify-center rounded-sm"
+                aria-label="Clear selected task"
+                onclick={clearSelection}
+                onkeydown={async (event) => {
+                  if (event.key !== 'Enter' && event.key !== ' ') return
+                  await clearSelection(event)
+                }}
+              >
+                <XIcon class="size-3.5" />
+              </span>
+            {/if}
+            <ChevronsUpDownIcon class="size-3.5 opacity-50" />
+          </span>
         </Button>
       {/snippet}
     </Popover.Trigger>
-    <Popover.Content class={popoverContentClass}>
+    <Popover.Content class={popoverContentClass} onFocusOutside={(e) => e.preventDefault()}>
       {@render SearchContent()}
     </Popover.Content>
   </Popover.Root>

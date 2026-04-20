@@ -1,12 +1,23 @@
-<script lang="ts">
-  import type { CustomTaskCategory, JiraIssue, TaskSession, TaskTransitionInput } from '../../../shared/types'
+﻿<script lang="ts">
+  import type {
+    CustomTaskCategory,
+    JiraIssue,
+    TaskSession,
+    TaskTransitionInput,
+    WorkingHoursSchedule
+  } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'
   import { Label } from '$lib/components/ui/label'
   import { toast } from 'svelte-sonner'
+  import * as Table from '$lib/components/ui/table'
   import PlusIcon from '@lucide/svelte/icons/plus'
   import Trash2Icon from '@lucide/svelte/icons/trash-2'
+  import {
+    calculateWorkingSecondsBetween,
+    sanitizeWorkingHoursSchedule
+  } from '../../../shared/working-hours'
 
   type TransitionDraftRow = {
     id: string
@@ -22,6 +33,7 @@
     sessions = [],
     jiraResults = [],
     customTaskCategories = [],
+    workingHours,
     isBusy = false,
     onSave
   }: {
@@ -29,9 +41,12 @@
     sessions?: TaskSession[]
     jiraResults?: JiraIssue[]
     customTaskCategories?: CustomTaskCategory[]
+    workingHours: WorkingHoursSchedule
     isBusy?: boolean
     onSave: (transitions: TaskTransitionInput[]) => Promise<void>
   } = $props()
+
+  const safeWorkingHours = $derived(sanitizeWorkingHoursSchedule(workingHours))
 
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
@@ -155,12 +170,30 @@
     rows = rows.filter((_, rowIndex) => rowIndex !== index)
   }
 
-  const save = async (): Promise<void> => {
-    if (rows.length === 0) {
-      toast.error('Add at least one transition before saving.')
-      return
-    }
+  const rowDurations = $derived(
+    rows.map((row, index) => {
+      const start = new Date(row.startLocal)
+      if (Number.isNaN(start.getTime())) return null
 
+      const next = rows[index + 1]
+      if (!next) return 'active'
+
+      const end = new Date(next.startLocal)
+      if (Number.isNaN(end.getTime())) return null
+
+      if (end <= start) return null
+      const totalMinutes = Math.round(
+        calculateWorkingSecondsBetween(start, end, safeWorkingHours) / 60
+      )
+      if (totalMinutes < 0) return null
+      if (totalMinutes < 60) return `${totalMinutes}m`
+      const hours = Math.floor(totalMinutes / 60)
+      const minutes = totalMinutes % 60
+      return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`
+    })
+  )
+
+  const save = async (): Promise<void> => {
     const transitions: TaskTransitionInput[] = []
     for (let index = 0; index < rows.length; index += 1) {
       const row = rows[index]
@@ -201,97 +234,108 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="max-h-[90vh] overflow-y-auto sm:max-w-5xl">
+  <Dialog.Content class="overflow-y-auto sm:max-w-5xl">
     <Dialog.Header>
       <Dialog.Title>Task Transition History</Dialog.Title>
       <Dialog.Description>
-        Edit task transition start times. Saving will rebuild session history so each task starts when
-        the previous one ends.
+        Edit task transition start times. Saving will rebuild session history so each task starts
+        when the previous one ends.
       </Dialog.Description>
     </Dialog.Header>
-
     <div class="space-y-3 py-2">
-      <div class="rounded-xl border">
-        <div class="grid grid-cols-[13rem_10rem_minmax(12rem,1fr)_8rem_3rem] gap-2 border-b bg-muted/30 px-3 py-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
-          <div>Start Time</div>
-          <div>Task</div>
-          <div>Summary</div>
-          <div>Booking</div>
-          <div></div>
-        </div>
+      <div class="rounded-xl border mb-4 overflow-hidden">
+        <Table.Root>
+          <Table.Header>
+            <Table.Row class="bg-muted/30 hover:bg-muted/30">
+              <Table.Head class="w-52">Start Time</Table.Head>
+              <Table.Head class="w-40">Task</Table.Head>
+              <Table.Head>Summary</Table.Head>
+              <Table.Head class="w-32">Booking</Table.Head>
+              <Table.Head class="w-12"></Table.Head>
+            </Table.Row>
+          </Table.Header>
+          <Table.Body>
+            {#if rows.length === 0}
+              <Table.Row>
+                <Table.Cell colspan={5} class="py-4 text-center text-sm text-muted-foreground">
+                  No transitions yet.
+                </Table.Cell>
+              </Table.Row>
+            {:else}
+              {#each rows as row, index (row.id)}
+                <Table.Row>
+                  <Table.Cell class="align-top">
+                    <Label class="sr-only" for={`start-${row.id}`}>Start time</Label>
+                    <Input
+                      id={`start-${row.id}`}
+                      type="datetime-local"
+                      value={row.startLocal}
+                      onchange={(event) =>
+                        updateRow(index, {
+                          startLocal: (event.currentTarget as HTMLInputElement).value
+                        })}
+                    />
+                    {#if rowDurations[index] === 'active'}
+                      <p class="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">● active</p>
+                    {:else if rowDurations[index]}
+                      <p class="mt-0.5 text-xs text-muted-foreground">{rowDurations[index]}</p>
+                    {/if}
+                  </Table.Cell>
 
-        {#if rows.length === 0}
-          <p class="px-3 py-4 text-sm text-muted-foreground">No transitions yet.</p>
-        {:else}
-          <div class="space-y-2 p-3">
-            {#each rows as row, index (row.id)}
-              <div class="grid grid-cols-[13rem_10rem_minmax(12rem,1fr)_8rem_3rem] gap-2">
-                <div>
-                  <Label class="sr-only" for={`start-${row.id}`}>Start time</Label>
-                  <Input
-                    id={`start-${row.id}`}
-                    type="datetime-local"
-                    value={row.startLocal}
-                    onchange={(event) =>
-                      updateRow(index, {
-                        startLocal: (event.currentTarget as HTMLInputElement).value
-                      })}
-                  />
-                </div>
+                  <Table.Cell class="align-top">
+                    <Label class="sr-only" for={`task-${row.id}`}>Task</Label>
+                    <Input
+                      id={`task-${row.id}`}
+                      list="task-transition-options"
+                      value={row.issueKey}
+                      onchange={(event) => {
+                        const nextKey = (event.currentTarget as HTMLInputElement).value
+                        updateRow(index, { issueKey: nextKey })
+                        applyKnownTask(index, nextKey)
+                      }}
+                    />
+                  </Table.Cell>
 
-                <div>
-                  <Label class="sr-only" for={`task-${row.id}`}>Task</Label>
-                  <Input
-                    id={`task-${row.id}`}
-                    list="task-transition-options"
-                    value={row.issueKey}
-                    onchange={(event) => {
-                      const nextKey = (event.currentTarget as HTMLInputElement).value
-                      updateRow(index, { issueKey: nextKey })
-                      applyKnownTask(index, nextKey)
-                    }}
-                  />
-                </div>
+                  <Table.Cell class="align-top">
+                    <Label class="sr-only" for={`summary-${row.id}`}>Summary</Label>
+                    <Input
+                      id={`summary-${row.id}`}
+                      value={row.summary}
+                      onchange={(event) =>
+                        updateRow(index, {
+                          summary: (event.currentTarget as HTMLInputElement).value
+                        })}
+                    />
+                  </Table.Cell>
 
-                <div>
-                  <Label class="sr-only" for={`summary-${row.id}`}>Summary</Label>
-                  <Input
-                    id={`summary-${row.id}`}
-                    value={row.summary}
-                    onchange={(event) =>
-                      updateRow(index, {
-                        summary: (event.currentTarget as HTMLInputElement).value
-                      })}
-                  />
-                </div>
+                  <Table.Cell class="align-top">
+                    <Label class="sr-only" for={`booking-${row.id}`}>Booking code</Label>
+                    <Input
+                      id={`booking-${row.id}`}
+                      value={row.bookingCode}
+                      onchange={(event) =>
+                        updateRow(index, {
+                          bookingCode: (event.currentTarget as HTMLInputElement).value
+                        })}
+                    />
+                  </Table.Cell>
 
-                <div>
-                  <Label class="sr-only" for={`booking-${row.id}`}>Booking code</Label>
-                  <Input
-                    id={`booking-${row.id}`}
-                    value={row.bookingCode}
-                    onchange={(event) =>
-                      updateRow(index, {
-                        bookingCode: (event.currentTarget as HTMLInputElement).value
-                      })}
-                  />
-                </div>
-
-                <div class="flex items-center justify-end">
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    class="text-muted-foreground"
-                    onclick={() => removeRow(index)}
-                  >
-                    <Trash2Icon class="size-4" />
-                    <span class="sr-only">Remove transition</span>
-                  </Button>
-                </div>
-              </div>
-            {/each}
-          </div>
-        {/if}
+                  <Table.Cell class="align-top text-right">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      class="text-muted-foreground"
+                      onclick={() => removeRow(index)}
+                    >
+                      <Trash2Icon class="size-4" />
+                      <span class="sr-only">Remove transition</span>
+                    </Button>
+                  </Table.Cell>
+                </Table.Row>
+              {/each}
+            {/if}
+          </Table.Body>
+        </Table.Root>
       </div>
 
       <datalist id="task-transition-options">
@@ -311,7 +355,7 @@
 
     <Dialog.Footer>
       <Button variant="secondary" onclick={() => (open = false)}>Cancel</Button>
-      <Button disabled={isBusy || rows.length === 0} onclick={save}>Save History</Button>
+      <Button disabled={isBusy} onclick={save}>Save History</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

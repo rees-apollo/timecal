@@ -12,14 +12,13 @@ import type {
   AddManualCustomTaskInput,
   AppSettings,
   AppSnapshot,
+  BuildWorklogDraftInput,
   CreatePlanningEventInput,
   DeletePlanningEventInput,
   SearchIssuesInput,
   SetWeeklyWorkingHoursInput,
   SetCalendarClassificationInput,
   StartTaskInput,
-  TaskTransitionInput,
-  UpdateTaskTransitionsInput,
   TaskSession,
   UpdatePlanningEventInput,
   WorklogDraft
@@ -135,76 +134,6 @@ const stopActiveSession = (): AppSnapshot => {
       active.endIso = new Date().toISOString()
     }
     state.activeSessionId = undefined
-  })
-}
-
-const updateTaskTransitions = (input: UpdateTaskTransitionsInput): AppSnapshot => {
-  return withStateUpdate(() => {
-    const rawTransitions = input?.transitions
-    if (!Array.isArray(rawTransitions) || rawTransitions.length === 0) {
-      throw new Error('Add at least one transition before saving.')
-    }
-
-    const transitions = rawTransitions.map((transition, index) => {
-      const issueKey = transition?.issueKey?.trim()
-      if (!issueKey) {
-        throw new Error(`Transition ${index + 1} is missing a task key.`)
-      }
-
-      const summary = transition?.summary?.trim() || issueKey
-      const startDate = new Date(transition.startIso)
-      if (Number.isNaN(startDate.getTime())) {
-        throw new Error(`Transition ${index + 1} has an invalid start time.`)
-      }
-
-      const taskType =
-        transition.taskType === 'jira' || transition.taskType === 'custom'
-          ? transition.taskType
-          : inferTaskType(issueKey)
-
-      return {
-        id: typeof transition.id === 'string' && transition.id.trim() ? transition.id : crypto.randomUUID(),
-        issueKey,
-        summary,
-        bookingCode: transition.bookingCode?.trim() || undefined,
-        taskType,
-        startIso: startDate.toISOString()
-      }
-    })
-
-    transitions.sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime())
-    for (let i = 1; i < transitions.length; i += 1) {
-      if (transitions[i].startIso === transitions[i - 1].startIso) {
-        throw new Error('Transitions must use unique start times.')
-      }
-    }
-
-    const sessions: TaskSession[] = transitions.map((transition, index) => {
-      const next = transitions[index + 1]
-      return {
-        id: transition.id,
-        jiraIssueKey: transition.issueKey,
-        jiraIssueSummary: transition.summary,
-        bookingCode: transition.bookingCode,
-        taskType: transition.taskType,
-        startIso: transition.startIso,
-        endIso: next?.startIso
-      }
-    })
-
-    const state = stateStore.get()
-    state.sessions = sessions
-    state.activeSessionId = sessions[sessions.length - 1]?.id
-
-    const jiraRecentIssueKeys: string[] = []
-    for (const transition of [...transitions].reverse()) {
-      if (transition.taskType !== 'jira') continue
-      if (!jiraRecentIssueKeys.includes(transition.issueKey)) {
-        jiraRecentIssueKeys.push(transition.issueKey)
-      }
-      if (jiraRecentIssueKeys.length >= 8) break
-    }
-    state.recentIssueKeys = jiraRecentIssueKeys
   })
 }
 
@@ -427,10 +356,6 @@ function registerIpcHandlers(): void {
 
   ipcMain.handle('task:switch', async (_, input: StartTaskInput) => startSession(input))
 
-  ipcMain.handle('task:updateTransitions', async (_, input: UpdateTaskTransitionsInput) =>
-    updateTaskTransitions(input)
-  )
-
   ipcMain.handle('task:stopActive', async () => stopActiveSession())
 
   ipcMain.handle('calendar:pull', async () => {
@@ -481,6 +406,8 @@ function registerIpcHandlers(): void {
         input.classification === 'custom-task' ? input.customTaskCategory : undefined
 
       if (calendarEvent && isOffTaskSource(calendarEvent.source)) {
+        // Off-task blocks must never be ignored from calculations.
+        if (input.classification === 'ignored') return
         if (input.classification === 'custom-task' && nextCustomTaskCategory) {
           calendarEvent.subject = nextCustomTaskCategory
         } else if (input.classification !== 'custom-task') {
@@ -528,8 +455,9 @@ function registerIpcHandlers(): void {
     })
   })
 
-  ipcMain.handle('worklog:buildDraft', async (_, sessionId?: string): Promise<WorklogDraft> => {
+  ipcMain.handle('worklog:buildDraft', async (_, input?: BuildWorklogDraftInput): Promise<WorklogDraft> => {
     const snapshot = getSnapshot()
+    const request = input ?? {}
     const latestJiraSession = [...snapshot.state.sessions]
       .reverse()
       .find(
@@ -537,8 +465,8 @@ function registerIpcHandlers(): void {
           (item.taskType ?? inferTaskType(item.jiraIssueKey)) === 'jira' &&
           (Boolean(item.endIso) || item.id === snapshot.activeSession?.id)
       )
-    const session = sessionId
-      ? snapshot.state.sessions.find((item) => item.id === sessionId)
+    const session = request.sessionId
+      ? snapshot.state.sessions.find((item) => item.id === request.sessionId)
       : latestJiraSession
 
     if (!session) {
@@ -549,16 +477,20 @@ function registerIpcHandlers(): void {
       throw new Error('Only Jira tasks can be drafted into a Jira worklog.')
     }
 
+    const workingHours = request.weekStartKey
+      ? snapshot.state.weeklyWorkingHoursOverrides[request.weekStartKey] ??
+        snapshot.state.settings.workingHours
+      : snapshot.state.weeklyWorkingHoursOverrides[getWeekStartKey(new Date(session.startIso))] ??
+        snapshot.state.settings.workingHours
+
     return buildWorklogDraft({
       session,
       nowIso: new Date().toISOString(),
       calendarEvents: snapshot.state.calendarEvents,
       calendarLinks: snapshot.state.calendarLinks,
-      manualEntries: snapshot.state.manualCustomTaskEntries,
-      customTaskCategories: snapshot.state.settings.customTaskCategories,
-      workingHours:
-        snapshot.state.weeklyWorkingHoursOverrides[getWeekStartKey(new Date(session.startIso))] ??
-        snapshot.state.settings.workingHours
+      workingHours,
+      rangeStartIso: request.rangeStartIso,
+      rangeEndIso: request.rangeEndIso
     })
   })
 

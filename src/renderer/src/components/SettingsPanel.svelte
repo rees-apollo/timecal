@@ -54,6 +54,25 @@
     { key: 'saturday', label: 'Saturday' },
     { key: 'sunday', label: 'Sunday' }
   ]
+
+  const updateLunchDuration = (dayKey: keyof AppSettings['workingHours'], rawValue: string): void => {
+    const parsed = Number.parseInt(rawValue, 10)
+    const lunchDurationMins =
+      rawValue.trim() === '' || Number.isNaN(parsed)
+        ? undefined
+        : Math.max(0, Math.min(240, Math.round(parsed)))
+
+    settings = {
+      ...settings,
+      workingHours: {
+        ...settings.workingHours,
+        [dayKey]: {
+          ...settings.workingHours[dayKey],
+          lunchDurationMins
+        }
+      }
+    }
+  }
 </script>
 
 <FieldSet>
@@ -106,16 +125,27 @@
       task overlays.
     </p>
     <div class="grid gap-2">
-      <div class="grid grid-cols-[140px_1fr_1fr] gap-2 text-sm font-medium">
+      <div class="grid grid-cols-[140px_1fr_1fr_1fr] gap-2 text-sm font-medium">
         <span>Day</span>
         <span>Start</span>
         <span>End</span>
+        <span>Lunch (min)</span>
       </div>
       {#each weekdays as day (day.key)}
-        <div class="grid grid-cols-[140px_1fr_1fr] items-center gap-2">
+        <div class="grid grid-cols-[140px_1fr_1fr_1fr] items-center gap-2">
           <span class="text-sm">{day.label}</span>
           <Input type="time" bind:value={settings.workingHours[day.key].start} />
           <Input type="time" bind:value={settings.workingHours[day.key].end} />
+          <Input
+            type="number"
+            min="0"
+            max="240"
+            placeholder="60"
+            value={settings.workingHours[day.key].lunchDurationMins ?? ''}
+            oninput={(e) => {
+              updateLunchDuration(day.key, (e.currentTarget as HTMLInputElement).value)
+            }}
+          />
         </div>
       {/each}
     </div>

@@ -2,6 +2,7 @@ export type CalendarEventClassification =
   | 'primary-task'
   | 'other-ticket'
   | 'custom-task'
+  | 'ignored'
   | 'unclassified'
 
 export interface CustomTaskCategory {
@@ -22,6 +23,7 @@ export type WeekdayKey =
 export interface DailyWorkingHours {
   start: string
   end: string
+  lunchDurationMins?: number
 }
 
 export type WorkingHoursSchedule = Record<WeekdayKey, DailyWorkingHours>
@@ -98,20 +100,18 @@ export interface ManualCustomTaskEntry {
   notes?: string
 }
 
-export interface CustomTaskBucket {
-  category: string
-  minutes: number
-  bookingCode?: string
-}
-
 export interface WorklogDraft {
   issueKey: string
   startedIso: string
   timeSpentSeconds: number
-  secondsOnTask: number
-  secondsCustomTask: number
-  detailBreakdown: CustomTaskBucket[]
   comment: string
+}
+
+export interface BuildWorklogDraftInput {
+  sessionId?: string
+  rangeStartIso?: string
+  rangeEndIso?: string
+  weekStartKey?: string
 }
 
 export interface PersistedState {

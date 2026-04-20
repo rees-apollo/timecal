@@ -1,8 +1,9 @@
-<script lang="ts">
+﻿<script lang="ts">
   import { onMount } from 'svelte'
   import type {
     AppSettings,
     AppSnapshot,
+    BuildWorklogDraftInput,
     CalendarEventClassification,
     JiraIssue,
     TaskTransitionInput,
@@ -293,10 +294,12 @@
     }, 'Manual custom task time added.')
   }
 
-  const openDraftDialog = async (sessionId?: string): Promise<void> => {
+  const openDraftDialog = async (input?: string | BuildWorklogDraftInput): Promise<void> => {
     await runAction(async () => {
-      worklogDraft = await window.api.buildWorklogDraft(sessionId)
+      const request = typeof input === 'string' ? { sessionId: input } : input
+      worklogDraft = await window.api.buildWorklogDraft(request)
       draftComment = worklogDraft.comment
+      reportDialogOpen = false
       draftDialogOpen = true
     })
   }
@@ -500,6 +503,7 @@
   sessions={snapshot?.state.sessions ?? []}
   {jiraResults}
   customTaskCategories={settings.customTaskCategories}
+  workingHours={settings.workingHours}
   {isBusy}
   onSave={saveTaskTransitions}
 />
