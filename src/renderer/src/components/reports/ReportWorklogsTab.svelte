@@ -8,7 +8,7 @@
 
   let {
     jiraSessionsForSelectedWeek,
-    isBusy = false,
+    isBusy: _isBusy = false, // eslint-disable-line @typescript-eslint/no-unused-vars
     selectedWeekStart,
     selectedWeekEnd,
     selectedWeekKey,

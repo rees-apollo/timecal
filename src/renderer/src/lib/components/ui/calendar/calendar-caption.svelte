@@ -27,13 +27,13 @@
     monthIndex: number
   } = $props()
 
-  function formatYear(date: DateValue) {
+  function formatYear(date: DateValue): string {
     const dateObj = date.toDate(getLocalTimeZone())
     if (typeof yearFormat === 'function') return yearFormat(dateObj.getFullYear())
     return new DateFormatter(locale, { year: yearFormat }).format(dateObj)
   }
 
-  function formatMonth(date: DateValue) {
+  function formatMonth(date: DateValue): string {
     const dateObj = date.toDate(getLocalTimeZone())
     if (typeof monthFormat === 'function') return monthFormat(dateObj.getMonth() + 1)
     return new DateFormatter(locale, { month: monthFormat }).format(dateObj)

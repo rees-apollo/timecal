@@ -193,8 +193,8 @@ export const getCalendarDayBoundaries = (
 
   for (const day of WEEKDAY_KEYS) {
     const hours = schedule[day]
-    let startMinutes = parseTimeToMinutes(hours.start)
-    let endMinutes = parseTimeToMinutes(hours.end)
+    const startMinutes = parseTimeToMinutes(hours.start)
+    const endMinutes = parseTimeToMinutes(hours.end)
 
     if (startMinutes === null || endMinutes === null || endMinutes <= startMinutes) continue
 

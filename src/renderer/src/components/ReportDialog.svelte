@@ -125,6 +125,7 @@
       weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours
     )
   )
+  // eslint-disable-next-line svelte/prefer-writable-derived -- weekOverrideDraft is bound to a child component via bind: and must remain $state
   let weekOverrideDraft: WorkingHoursSchedule = $state(
     sanitizeWorkingHoursSchedule(DEFAULT_SETTINGS.workingHours)
   )

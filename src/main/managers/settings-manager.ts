@@ -6,6 +6,7 @@ import { StateStore } from './state-manager'
 import type {
   AppSettings,
   AppSnapshot,
+  JiraIssue,
   SearchIssuesInput,
   SetWeeklyWorkingHoursInput
 } from '../../shared/types'
@@ -77,7 +78,7 @@ export class SettingsManager {
     })
   }
 
-  async searchIssues(input: SearchIssuesInput) {
+  async searchIssues(input: SearchIssuesInput): Promise<JiraIssue[]> {
     const settings = this.getRequiredJiraSettings()
     return jiraClient.searchIssues({
       baseUrl: settings.jiraBaseUrl,

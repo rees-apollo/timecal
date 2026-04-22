@@ -16,6 +16,18 @@ export default defineConfig(
     }
   },
   {
+    files: ['**/*.svelte.ts'],
+    languageOptions: {
+      parser: tseslint.parser
+    }
+  },
+  {
+    files: ['**/*.mjs'],
+    rules: {
+      '@typescript-eslint/explicit-function-return-type': 'off'
+    }
+  },
+  {
     files: ['**/*.{tsx,svelte}'],
     rules: {
       'svelte/no-unused-svelte-ignore': 'off'

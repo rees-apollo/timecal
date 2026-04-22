@@ -39,6 +39,7 @@ export const buildScheduleXEvents = (input: {
   getCustomTaskCategory: (eventId: string) => string | undefined
   getEventColor: (eventId: string) => string
   toTemporalZonedDateTime: (iso: string) => Temporal.ZonedDateTime
+  // eslint-disable-next-line @typescript-eslint/explicit-function-return-type
 }) => {
   const {
     calendarEvents,
@@ -166,7 +167,12 @@ export const buildScheduleXBackgroundEvents = (input: {
   sessions: TaskSession[]
   workingHours: WorkingHoursSchedule
   toTemporalZonedDateTime: (iso: string) => Temporal.ZonedDateTime
-}) => {
+}): Array<{
+  start: Temporal.ZonedDateTime
+  end: Temporal.ZonedDateTime
+  title: string
+  style: Record<string, string>
+}> => {
   const { sessions, workingHours, toTemporalZonedDateTime } = input
   const backgroundEvents: Array<{
     start: Temporal.ZonedDateTime
