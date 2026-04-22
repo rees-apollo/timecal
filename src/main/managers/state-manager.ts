@@ -1,46 +1,119 @@
 import { app } from 'electron'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
-import { createDefaultState } from './defaults'
-import { autoCustomTaskCategoryColor } from '../shared/off-task-colors'
-import { sanitizeWorkingHoursSchedule } from '../shared/working-hours'
+import { autoCustomTaskCategoryColor } from '../../shared/off-task-colors'
+import { sanitizeWorkingHoursSchedule } from '../../shared/working-hours'
+import { inferTaskType } from '../../shared/task-type'
+import { DEFAULT_SETTINGS } from '../../shared/defaults'
 import type {
   CalendarEvent,
   CalendarEventLink,
   LoggedWorklogEntry,
   PersistedState,
   TaskSession
-} from '../shared/types'
+} from '../../shared/types'
 
 const STATE_FILE_NAME = 'timecal-state.json'
-
-type LegacySettings = Partial<PersistedState['settings']> & {
-  offTaskCategories?: unknown[]
-}
-
-type LegacyState = Partial<PersistedState> & {
-  settings?: LegacySettings
-  calendarEvents?: unknown[]
-  calendarLinks?: unknown[]
-  loggedWorklogs?: unknown[]
-  manualOffTaskEntries?: PersistedState['manualCustomTaskEntries']
-}
+const createDefaultState = (): PersistedState => ({
+  settings: { ...DEFAULT_SETTINGS },
+  weeklyWorkingHoursOverrides: {},
+  sessions: [],
+  loggedWorklogs: [],
+  recentIssueKeys: [],
+  calendarEvents: [],
+  calendarLinks: [],
+  manualCustomTaskEntries: []
+})
 
 const getStorePath = (): string => join(app.getPath('userData'), STATE_FILE_NAME)
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
   typeof value === 'object' && value !== null
 
-const JIRA_ISSUE_KEY_REGEX = /^[A-Z][A-Z0-9]+-\d+$/
+const normalizeImportedEventId = (legacyId: string, startIso: string): string => {
+  if (legacyId.startsWith('imp_')) return legacyId
 
-const inferTaskType = (issueKey: string): 'jira' | 'custom' =>
-  JIRA_ISSUE_KEY_REGEX.test(issueKey.trim().toUpperCase()) ? 'jira' : 'custom'
+  const baseId = legacyId.includes(':') ? legacyId.slice(0, legacyId.indexOf(':')) : legacyId
+  const hash = createHash('sha1').update(baseId).digest('hex').slice(0, 16)
+  const startMs = Date.parse(startIso)
+  const suffix = Number.isFinite(startMs) ? String(startMs) : startIso.replace(/[^0-9]/g, '') || '0'
+
+  return `imp_${hash}_${suffix}`
+}
 
 const sanitizeState = (raw: unknown): PersistedState => {
   const fallback = createDefaultState()
   if (typeof raw !== 'object' || raw === null) return fallback
 
-  const candidate = raw as LegacyState
+  const candidate = raw as Partial<PersistedState>
+  const normalizedCalendarIdMap = new Map<string, string>()
+
+  const sanitizedCalendarEvents: CalendarEvent[] = Array.isArray(candidate.calendarEvents)
+    ? candidate.calendarEvents
+        .map((event): CalendarEvent | null => {
+          if (!isRecord(event)) return null
+          if (
+            typeof event.id !== 'string' ||
+            typeof event.subject !== 'string' ||
+            typeof event.startIso !== 'string' ||
+            typeof event.endIso !== 'string'
+          ) {
+            return null
+          }
+
+          const sourceRaw = (event.source as string | undefined) ?? undefined
+          const source =
+            sourceRaw === 'off-task' || sourceRaw === 'imported' || sourceRaw === 'planning'
+              ? sourceRaw
+              : undefined
+
+          const normalizedId =
+            source === 'imported' ? normalizeImportedEventId(event.id, event.startIso) : event.id
+          normalizedCalendarIdMap.set(event.id, normalizedId)
+
+          return {
+            id: normalizedId,
+            subject: event.subject,
+            startIso: event.startIso,
+            endIso: event.endIso,
+            source,
+            plannedMinutes:
+              typeof event.plannedMinutes === 'number' && Number.isFinite(event.plannedMinutes)
+                ? Math.max(1, Math.floor(event.plannedMinutes))
+                : undefined
+          }
+        })
+        .filter((event): event is CalendarEvent => event !== null)
+    : []
+
+  const sanitizedCalendarLinks: CalendarEventLink[] = Array.isArray(candidate.calendarLinks)
+    ? candidate.calendarLinks
+        .map((link): CalendarEventLink | null => {
+          if (!isRecord(link) || typeof link.eventId !== 'string') return null
+
+          const classificationRaw = (link.classification as string | undefined) ?? undefined
+          const classification =
+            classificationRaw === 'primary-task' ||
+            classificationRaw === 'other-ticket' ||
+            classificationRaw === 'custom-task' ||
+            classificationRaw === 'ignored' ||
+            classificationRaw === 'unclassified'
+              ? classificationRaw
+              : 'unclassified'
+
+          return {
+            eventId: normalizedCalendarIdMap.get(link.eventId) ?? link.eventId,
+            classification,
+            otherTicketKey:
+              typeof link.otherTicketKey === 'string' ? link.otherTicketKey : undefined,
+            customTaskCategory:
+              typeof link.customTaskCategory === 'string' ? link.customTaskCategory : undefined
+          }
+        })
+        .filter((link): link is CalendarEventLink => link !== null)
+    : []
+
   return {
     ...fallback,
     ...candidate,
@@ -48,14 +121,8 @@ const sanitizeState = (raw: unknown): PersistedState => {
       ...fallback.settings,
       ...(candidate.settings ?? {}),
       workingHours: sanitizeWorkingHoursSchedule(candidate.settings?.workingHours),
-      customTaskCategories: Array.isArray(
-        candidate.settings?.customTaskCategories ?? candidate.settings?.offTaskCategories
-      )
-        ? (
-            candidate.settings?.customTaskCategories ??
-            candidate.settings?.offTaskCategories ??
-            []
-          ).map((cat, index) => {
+      customTaskCategories: Array.isArray(candidate.settings?.customTaskCategories)
+        ? candidate.settings.customTaskCategories.map((cat, index) => {
             if (typeof cat === 'string') {
               return {
                 name: cat,
@@ -151,75 +218,10 @@ const sanitizeState = (raw: unknown): PersistedState => {
           .filter((entry): entry is LoggedWorklogEntry => entry !== null)
       : [],
     recentIssueKeys: Array.isArray(candidate.recentIssueKeys) ? candidate.recentIssueKeys : [],
-    calendarEvents: Array.isArray(candidate.calendarEvents)
-      ? candidate.calendarEvents
-          .map((event): CalendarEvent | null => {
-            if (!isRecord(event)) return null
-            if (
-              typeof event.id !== 'string' ||
-              typeof event.subject !== 'string' ||
-              typeof event.startIso !== 'string' ||
-              typeof event.endIso !== 'string'
-            ) {
-              return null
-            }
-
-            const sourceRaw = (event.source as string | undefined) ?? undefined
-            const source =
-              sourceRaw === 'planning'
-                ? 'off-task'
-                : sourceRaw === 'off-task' || sourceRaw === 'imported'
-                  ? sourceRaw
-                  : undefined
-
-            return {
-              id: event.id,
-              subject: event.subject,
-              startIso: event.startIso,
-              endIso: event.endIso,
-              source,
-              plannedMinutes:
-                typeof event.plannedMinutes === 'number' && Number.isFinite(event.plannedMinutes)
-                  ? Math.max(1, Math.floor(event.plannedMinutes))
-                  : undefined
-            }
-          })
-          .filter((event): event is CalendarEvent => event !== null)
-      : [],
-    calendarLinks: Array.isArray(candidate.calendarLinks)
-      ? candidate.calendarLinks
-          .map((link): CalendarEventLink | null => {
-            if (!isRecord(link) || typeof link.eventId !== 'string') return null
-
-            const classificationRaw = (link.classification as string | undefined) ?? undefined
-            const classification =
-              classificationRaw === 'off-task'
-                ? 'custom-task'
-                : classificationRaw === 'primary-task' ||
-                    classificationRaw === 'other-ticket' ||
-                    classificationRaw === 'custom-task' ||
-                    classificationRaw === 'ignored' ||
-                    classificationRaw === 'unclassified'
-                  ? classificationRaw
-                  : 'unclassified'
-
-            return {
-              eventId: link.eventId,
-              classification,
-              otherTicketKey:
-                typeof link.otherTicketKey === 'string' ? link.otherTicketKey : undefined,
-              customTaskCategory:
-                typeof (link.customTaskCategory ?? link.offTaskCategory) === 'string'
-                  ? String(link.customTaskCategory ?? link.offTaskCategory)
-                  : undefined
-            }
-          })
-          .filter((link): link is CalendarEventLink => link !== null)
-      : [],
-    manualCustomTaskEntries: Array.isArray(
-      candidate.manualCustomTaskEntries ?? candidate.manualOffTaskEntries
-    )
-      ? (candidate.manualCustomTaskEntries ?? candidate.manualOffTaskEntries ?? [])
+    calendarEvents: sanitizedCalendarEvents,
+    calendarLinks: sanitizedCalendarLinks,
+    manualCustomTaskEntries: Array.isArray(candidate.manualCustomTaskEntries)
+      ? candidate.manualCustomTaskEntries
       : []
   }
 }

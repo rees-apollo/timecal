@@ -1,0 +1,36 @@
+name: Build And Publish Release Assets
+
+on:
+  release:
+    types:
+      - published
+
+permissions:
+  contents: write
+
+jobs:
+  publish-windows:
+    name: Publish Windows Assets
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Install dependencies
+        run: bun install --frozen-lockfile
+
+      - name: Rebuild native modules for Electron
+        run: bun run rebuild:native
+
+      - name: Build app
+        run: bun run build
+
+      - name: Publish Windows installer to GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: bun x electron-builder --win nsis --publish always

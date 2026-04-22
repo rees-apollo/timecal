@@ -1,4 +1,4 @@
-import type { JiraIssue, PushWorklogInput } from '../shared/types'
+import type { JiraIssue, PushWorklogInput } from '../../../shared/types'
 
 interface JiraIssuePickerResponse {
   sections?: Array<{
@@ -36,7 +36,6 @@ const toJiraStartedFormat = (value: string): string => {
     throw new Error(`Invalid started timestamp: ${value}`)
   }
 
-  // Jira expects yyyy-MM-dd'T'HH:mm:ss.SSSZ where Z is an RFC822 offset (e.g. +0000).
   return `${date.getUTCFullYear()}-${pad(date.getUTCMonth() + 1, 2)}-${pad(date.getUTCDate(), 2)}T${pad(date.getUTCHours(), 2)}:${pad(date.getUTCMinutes(), 2)}:${pad(date.getUTCSeconds(), 2)}.${pad(date.getUTCMilliseconds(), 3)}+0000`
 }
 
@@ -174,3 +173,5 @@ export class JiraClient {
     }
   }
 }
+
+export const jiraClient = new JiraClient()

@@ -10,28 +10,20 @@
   import CalendarPanel from './CalendarPanel.svelte'
   import EventClassifier from './EventClassifier.svelte'
 
-  let {
-    snapshot = null,
-    settings,
-    jiraResults = [],
-    selectedIssueKey = $bindable(''),
-    otherTicketMap = $bindable({}),
-    classifyEvent,
-    createPlanningEvent,
-    updatePlanningEvent,
-    deletePlanningEvent,
-    sessions = [],
-    workingHours,
-    onDisplayedWeekStartChange,
-    getClassification,
-    getCustomTaskCategory,
-    getEventColor
-  }: {
+  type MainCalendarContext = {
     snapshot?: AppSnapshot | null
     settings: AppSettings
     jiraResults?: JiraIssue[]
+    sessions?: TaskSession[]
+    workingHours: WorkingHoursSchedule
+  }
+
+  type MainCalendarSelection = {
     selectedIssueKey?: string
     otherTicketMap?: Record<string, string>
+  }
+
+  type MainCalendarActions = {
     classifyEvent: (
       eventId: string,
       classification: string,
@@ -49,12 +41,26 @@
       plannedMinutes?: number | null
     ) => Promise<void>
     deletePlanningEvent: (id: string) => Promise<void>
-    sessions?: TaskSession[]
-    workingHours: WorkingHoursSchedule
-    onDisplayedWeekStartChange: (weekStartKey: string) => void
+  }
+
+  type MainCalendarSelectors = {
     getClassification: (eventId: string) => CalendarEventClassification
     getCustomTaskCategory: (eventId: string) => string | undefined
     getEventColor: (eventId: string) => string
+  }
+
+  let {
+    context,
+    selection = $bindable({ selectedIssueKey: '', otherTicketMap: {} }),
+    actions,
+    selectors,
+    onDisplayedWeekStartChange
+  }: {
+    context: MainCalendarContext
+    selection?: MainCalendarSelection
+    actions: MainCalendarActions
+    selectors: MainCalendarSelectors
+    onDisplayedWeekStartChange: (weekStartKey: string) => void
   } = $props()
 
   type AnchorRect = {
@@ -69,11 +75,56 @@
   let selectedCalendarEventId = $state('')
   let selectedEventAnchorRect = $state<AnchorRect | null>(null)
 
-  const calendarEvents = $derived(snapshot?.state.calendarEvents ?? [])
+  const calendarEvents = $derived(context.snapshot?.state.calendarEvents ?? [])
   const selectedCalendarEvent = $derived(
     calendarEvents.find((e) => e.id === selectedCalendarEventId) ?? calendarEvents[0]
   )
-  const primaryIssueKey = $derived(selectedIssueKey || snapshot?.activeSession?.jiraIssueKey || '')
+  const primaryIssueKey = $derived(
+    selection.selectedIssueKey || context.snapshot?.activeSession?.jiraIssueKey || ''
+  )
+
+  const calendarPanelData = $derived({
+    calendarEvents,
+    calendarLinks: context.snapshot?.state.calendarLinks ?? [],
+    customTaskCategories: context.snapshot?.state.settings.customTaskCategories ?? [],
+    sessions: context.sessions ?? [],
+    workingHours: context.workingHours
+  })
+
+  const calendarPanelBehavior = $derived.by(() => ({
+    getClassification: selectors.getClassification,
+    getCustomTaskCategory: selectors.getCustomTaskCategory,
+    getEventColor: selectors.getEventColor,
+    createPlanningEvent: actions.createPlanningEvent,
+    updatePlanningEvent: actions.updatePlanningEvent,
+    onDisplayedWeekStartChange,
+    onEventClick: (payload: { id: string; anchorRect: AnchorRect | null }) => {
+      selectedCalendarEventId = payload.id
+      selectedEventAnchorRect = payload.anchorRect
+    }
+  }))
+
+  const eventClassifierContext = $derived({
+    selectedCalendarEvent,
+    popupAnchorRect: selectedEventAnchorRect,
+    jiraResults: context.jiraResults ?? [],
+    recentIssueKeys: context.snapshot?.state.recentIssueKeys ?? [],
+    sessions: context.snapshot?.state.sessions ?? [],
+    primaryIssueKey,
+    customTaskCategories: context.settings.customTaskCategories ?? []
+  })
+
+  const eventClassifierActions = $derived.by(() => ({
+    getClassification: selectors.getClassification,
+    getCustomTaskCategory: selectors.getCustomTaskCategory,
+    classifyEvent: actions.classifyEvent,
+    updatePlanningEvent: actions.updatePlanningEvent,
+    deletePlanningEvent: actions.deletePlanningEvent,
+    onClose: () => {
+      selectedEventAnchorRect = null
+      selectedCalendarEventId = ''
+    }
+  }))
 
   $effect(() => {
     if (
@@ -88,39 +139,22 @@
 
 <div class="h-screen w-screen">
   <CalendarPanel
-    {calendarEvents}
-    calendarLinks={snapshot?.state.calendarLinks ?? []}
-    customTaskCategories={snapshot?.state.settings.customTaskCategories ?? []}
-    {getClassification}
-    {getCustomTaskCategory}
-    {getEventColor}
-    {createPlanningEvent}
-    {updatePlanningEvent}
-    {sessions}
-    {workingHours}
-    {onDisplayedWeekStartChange}
-    onEventClick={(payload) => {
-      selectedCalendarEventId = payload.id
-      selectedEventAnchorRect = payload.anchorRect
-    }}
+    calendarEvents={calendarPanelData.calendarEvents}
+    calendarLinks={calendarPanelData.calendarLinks}
+    customTaskCategories={calendarPanelData.customTaskCategories}
+    sessions={calendarPanelData.sessions}
+    workingHours={calendarPanelData.workingHours}
+    getClassification={calendarPanelBehavior.getClassification}
+    getCustomTaskCategory={calendarPanelBehavior.getCustomTaskCategory}
+    getEventColor={calendarPanelBehavior.getEventColor}
+    createPlanningEvent={calendarPanelBehavior.createPlanningEvent}
+    updatePlanningEvent={calendarPanelBehavior.updatePlanningEvent}
+    onDisplayedWeekStartChange={calendarPanelBehavior.onDisplayedWeekStartChange}
+    onEventClick={calendarPanelBehavior.onEventClick}
   />
   <EventClassifier
-    {selectedCalendarEvent}
-    popupAnchorRect={selectedEventAnchorRect}
-    bind:otherTicketMap
-    {jiraResults}
-    recentIssueKeys={snapshot?.state.recentIssueKeys ?? []}
-    sessions={snapshot?.state.sessions ?? []}
-    {primaryIssueKey}
-    customTaskCategories={settings.customTaskCategories ?? []}
-    {getClassification}
-    {getCustomTaskCategory}
-    {classifyEvent}
-    {updatePlanningEvent}
-    {deletePlanningEvent}
-    onClose={() => {
-      selectedEventAnchorRect = null
-      selectedCalendarEventId = ''
-    }}
+    context={eventClassifierContext}
+    bind:otherTicketMap={selection.otherTicketMap}
+    actions={eventClassifierActions}
   />
 </div>

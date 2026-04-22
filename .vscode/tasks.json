@@ -1,0 +1,36 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "setup: install deps",
+      "type": "shell",
+      "command": "bun",
+      "args": ["install"],
+      "group": "none",
+      "detail": "Installs all dependencies and rebuilds native modules for Electron (via postinstall).",
+      "problemMatcher": []
+    },
+    {
+      "label": "build: app (local)",
+      "type": "shell",
+      "command": "bun",
+      "args": ["run", "build"],
+      "group": "build",
+      "dependsOn": ["setup: install deps"],
+      "problemMatcher": []
+    },
+    {
+      "label": "package: installer (local)",
+      "type": "shell",
+      "command": "bun",
+      "args": ["run", "make", "--", "--publish=never"],
+      "group": {
+        "kind": "build",
+        "isDefault": true
+      },
+      "detail": "Builds installer artifacts locally only. Does not push or publish to any remote.",
+      "dependsOn": ["setup: install deps"],
+      "problemMatcher": []
+    }
+  ]
+}

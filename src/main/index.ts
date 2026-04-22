@@ -1,115 +1,23 @@
-import { app, shell, BrowserWindow, ipcMain, Tray, Menu } from 'electron'
+import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
-import { StateStore } from './state-store'
-import { JiraClient } from './jira-client'
-import { OutlookClient } from './outlook-client'
-import { buildWorklogDraft } from './time-engine'
-import { autoCustomTaskCategoryColor } from '../shared/off-task-colors'
-import { getWeekStartKey, sanitizeWorkingHoursSchedule } from '../shared/working-hours'
-import type {
-  AddManualCustomTaskInput,
-  AppSettings,
-  AppSnapshot,
-  BuildWorklogDraftInput,
-  CreatePlanningEventInput,
-  DeletePlanningEventInput,
-  SearchIssuesInput,
-  SetWeeklyWorkingHoursInput,
-  SetCalendarClassificationInput,
-  StartTaskInput,
-  TaskSession,
-  UpdateTaskTransitionsInput,
-  UpdatePlanningEventInput,
-  WorklogDraft
-} from '../shared/types'
+import { setupAutoUpdates } from './managers/update-manager'
+import { StateStore } from './managers/state-manager'
+import { EventManager } from './managers/event-manager'
+import { SettingsManager } from './managers/settings-manager'
+import { TaskManager } from './managers/task-manager'
+import { WorklogManager } from './managers/worklog-manager'
+import { TrayManager } from './managers/tray-manager'
+import type { AppSnapshot } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
-let tray: Tray | null = null
 let isQuitting = false
 
 const stateStore = new StateStore()
-const jiraClient = new JiraClient()
-const outlookClient = new OutlookClient()
+let trayManager: TrayManager | null = null
 
 const STATE_CHANGED_CHANNEL = 'state:changed'
-const DEFAULT_OFF_TASK_SUBJECT = 'Off-task block'
-const JIRA_ISSUE_KEY_REGEX = /^[A-Z][A-Z0-9]+-\d+$/
-
-const setupAutoUpdates = (): void => {
-  if (!app.isPackaged) {
-    return
-  }
-
-  autoUpdater.autoDownload = true
-  autoUpdater.autoInstallOnAppQuit = true
-
-  autoUpdater.on('checking-for-update', () => {
-    console.log('Auto-updater: checking for updates')
-  })
-
-  autoUpdater.on('update-available', (info) => {
-    console.log(`Auto-updater: update available (${info.version})`)
-  })
-
-  autoUpdater.on('update-not-available', () => {
-    console.log('Auto-updater: no update available')
-  })
-
-  autoUpdater.on('error', (error) => {
-    console.error('Auto-updater error:', error)
-  })
-
-  autoUpdater.on('download-progress', (progress) => {
-    const pct = Math.round(progress.percent)
-    console.log(`Auto-updater: download ${pct}%`)
-  })
-
-  autoUpdater.on('update-downloaded', (info) => {
-    console.log(`Auto-updater: update downloaded (${info.version}), will install on quit`)
-  })
-
-  autoUpdater.checkForUpdates().catch((error) => {
-    console.error('Auto-updater check failed:', error)
-  })
-
-  setInterval(
-    () => {
-      autoUpdater.checkForUpdates().catch((error) => {
-        console.error('Scheduled auto-updater check failed:', error)
-      })
-    },
-    60 * 60 * 1000
-  )
-}
-
-const sanitizePlannedMinutes = (value: number | null | undefined): number | undefined => {
-  if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
-  const rounded = Math.floor(value)
-  return rounded > 0 ? rounded : undefined
-}
-
-const isOffTaskSource = (source: string | undefined): boolean =>
-  source === 'off-task' || source === 'planning'
-
-const inferTaskType = (issueKey: string): 'jira' | 'custom' =>
-  JIRA_ISSUE_KEY_REGEX.test(issueKey.trim().toUpperCase()) ? 'jira' : 'custom'
-
-const sameRange = (
-  entry: { rangeStartIso?: string; rangeEndIso?: string },
-  rangeStartIso?: string,
-  rangeEndIso?: string
-): boolean =>
-  (entry.rangeStartIso ?? '') === (rangeStartIso ?? '') &&
-  (entry.rangeEndIso ?? '') === (rangeEndIso ?? '')
-
-const getActiveSession = (): TaskSession | undefined => {
-  const state = stateStore.get()
-  return state.sessions.find((item) => item.id === state.activeSessionId)
-}
-
 const getSnapshot = (): AppSnapshot => {
   const state = stateStore.get()
   return {
@@ -118,278 +26,35 @@ const getSnapshot = (): AppSnapshot => {
   }
 }
 
-const settingsReady = (settings: AppSettings): boolean => {
-  return Boolean(settings.jiraBaseUrl && settings.jiraEmail && settings.jiraApiToken)
-}
-
 const withStateUpdate = (updater: () => void): AppSnapshot => {
   updater()
   stateStore.save(stateStore.get())
   const snapshot = getSnapshot()
   mainWindow?.webContents.send(STATE_CHANGED_CHANNEL, snapshot)
-  refreshTray()
+  trayManager?.refresh()
   return snapshot
 }
 
-const findRecentIssueDetails = (
-  issueKey: string
-): { summary: string; bookingCode?: string; taskType?: 'jira' | 'custom' } => {
-  const state = stateStore.get()
-  const latestSession = [...state.sessions]
-    .reverse()
-    .find((session) => session.jiraIssueKey === issueKey)
-  if (!latestSession) {
-    return { summary: issueKey }
-  }
+const settingsManager = new SettingsManager({
+  stateStore,
+  withStateUpdate
+})
 
-  return {
-    summary: latestSession.jiraIssueSummary,
-    bookingCode: latestSession.bookingCode,
-    taskType: latestSession.taskType
-  }
-}
+const taskManager = new TaskManager({
+  stateStore,
+  withStateUpdate
+})
 
-const startSession = (input: StartTaskInput): AppSnapshot => {
-  return withStateUpdate(() => {
-    const state = stateStore.get()
-    const now = new Date().toISOString()
+const eventManager = new EventManager({
+  stateStore,
+  withStateUpdate
+})
 
-    if (state.activeSessionId) {
-      const active = state.sessions.find((item) => item.id === state.activeSessionId)
-      if (active && !active.endIso) {
-        active.endIso = now
-      }
-    }
-
-    const nextSession: TaskSession = {
-      id: crypto.randomUUID(),
-      jiraIssueKey: input.issueKey,
-      jiraIssueSummary: input.summary,
-      bookingCode: input.bookingCode,
-      taskType: input.taskType ?? inferTaskType(input.issueKey),
-      startIso: now
-    }
-    state.sessions.push(nextSession)
-    state.activeSessionId = nextSession.id
-
-    if ((input.taskType ?? inferTaskType(input.issueKey)) === 'jira') {
-      state.recentIssueKeys = [
-        input.issueKey,
-        ...state.recentIssueKeys.filter((item) => item !== input.issueKey)
-      ].slice(0, 8)
-    }
-  })
-}
-
-const stopActiveSession = (): AppSnapshot => {
-  return withStateUpdate(() => {
-    const state = stateStore.get()
-    if (!state.activeSessionId) return
-
-    const active = state.sessions.find((item) => item.id === state.activeSessionId)
-    if (active && !active.endIso) {
-      active.endIso = new Date().toISOString()
-    }
-    state.activeSessionId = undefined
-  })
-}
-
-const updateTaskTransitions = (input: UpdateTaskTransitionsInput): AppSnapshot => {
-  return withStateUpdate(() => {
-    const state = stateStore.get()
-    const existingById = new Map(state.sessions.map((session) => [session.id, session]))
-
-    const normalized = [...input.transitions]
-      .map((transition) => ({
-        id: transition.id?.trim() || crypto.randomUUID(),
-        issueKey: transition.issueKey.trim(),
-        summary: transition.summary.trim(),
-        bookingCode: transition.bookingCode?.trim() || undefined,
-        taskType: transition.taskType,
-        startIso: transition.startIso
-      }))
-      .filter((transition) => transition.issueKey.length > 0)
-
-    normalized.sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime())
-
-    const rebuilt: TaskSession[] = []
-    for (let index = 0; index < normalized.length; index += 1) {
-      const row = normalized[index]
-      const startMs = new Date(row.startIso).getTime()
-      if (Number.isNaN(startMs)) {
-        throw new Error(`Invalid transition start time for ${row.issueKey}.`)
-      }
-
-      const next = normalized[index + 1]
-      const nextStartMs = next ? new Date(next.startIso).getTime() : null
-      if (nextStartMs !== null && Number.isNaN(nextStartMs)) {
-        throw new Error(`Invalid transition start time for ${next.issueKey}.`)
-      }
-      if (nextStartMs !== null && nextStartMs <= startMs) {
-        throw new Error('Each transition must have a unique start time in chronological order.')
-      }
-
-      const existing = existingById.get(row.id)
-      const session: TaskSession = {
-        id: row.id,
-        jiraIssueKey: row.issueKey,
-        jiraIssueSummary: row.summary || row.issueKey,
-        bookingCode: row.bookingCode,
-        taskType: row.taskType ?? inferTaskType(row.issueKey),
-        startIso: row.startIso
-      }
-
-      if (next) {
-        session.endIso = next.startIso
-      } else if (existing?.endIso && new Date(existing.endIso).getTime() > startMs) {
-        session.endIso = existing.endIso
-      }
-
-      rebuilt.push(session)
-    }
-
-    state.sessions = rebuilt
-    const last = rebuilt[rebuilt.length - 1]
-    state.activeSessionId = last && !last.endIso ? last.id : undefined
-
-    const jiraKeys = rebuilt
-      .filter((session) => (session.taskType ?? inferTaskType(session.jiraIssueKey)) === 'jira')
-      .map((session) => session.jiraIssueKey)
-      .reverse()
-    state.recentIssueKeys = [...new Set([...jiraKeys, ...state.recentIssueKeys])].slice(0, 8)
-  })
-}
-
-const getRollingWindow = (includeHistoric: boolean): { startIso: string; endIso: string } => {
-  const now = new Date()
-  const start = new Date(now)
-  if (includeHistoric) {
-    start.setDate(start.getDate() - 90)
-  }
-  start.setHours(0, 0, 0, 0)
-  const end = new Date(now)
-  end.setDate(end.getDate() + 30)
-  end.setHours(23, 59, 59, 999)
-  return { startIso: start.toISOString(), endIso: end.toISOString() }
-}
-
-const performCalendarPull = async (
-  full: boolean,
-  includeHistoric = false
-): Promise<AppSnapshot> => {
-  const { startIso, endIso } = getRollingWindow(includeHistoric)
-  const state = stateStore.get()
-  const modifiedSinceIso = full ? undefined : (state.calendarLastPulledIso ?? undefined)
-
-  const incoming = await outlookClient.getCalendarEvents({ startIso, endIso, modifiedSinceIso })
-  const pulledAt = new Date().toISOString()
-
-  return withStateUpdate(() => {
-    const s = stateStore.get()
-    // Off-task events are user-created and must never be touched by an Outlook pull.
-    const offTaskEvents = s.calendarEvents.filter((e) => isOffTaskSource(e.source))
-
-    if (full) {
-      // Replace all imported/legacy Outlook events with the fresh batch; keep off-task events.
-      s.calendarEvents = [...offTaskEvents, ...incoming]
-    } else {
-      // Upsert: apply changed/new events, keep everything else.
-      // Use age-based pruning only — window-based pruning was discarding valid cached history.
-      const MAX_HISTORY_MS = 120 * 24 * 60 * 60 * 1000
-      const cutoff = Date.now() - MAX_HISTORY_MS
-      const incomingIds = new Set(incoming.map((e) => e.id))
-      const kept = s.calendarEvents.filter(
-        (e) =>
-          !isOffTaskSource(e.source) &&
-          !incomingIds.has(e.id) &&
-          new Date(e.startIso).getTime() >= cutoff
-      )
-      s.calendarEvents = [...offTaskEvents, ...kept, ...incoming]
-    }
-    s.calendarLastPulledIso = pulledAt
-  })
-}
-
-const ensureJiraSettings = (): AppSettings => {
-  const settings = stateStore.get().settings
-  if (!settingsReady(settings)) {
-    throw new Error('Please configure Jira base URL, email, and API token first.')
-  }
-
-  return settings
-}
-
-const refreshTray = (): void => {
-  if (!tray) return
-
-  const snapshot = getSnapshot()
-  const active = snapshot.activeSession
-  const state = snapshot.state
-  const title = active
-    ? `${active.jiraIssueKey} (${Math.floor((Date.now() - new Date(active.startIso).getTime()) / 60000)}m)`
-    : 'No active task'
-  tray.setToolTip(`TimeCal - ${title}`)
-
-  const quickSwitchItems = state.recentIssueKeys.map((issueKey) => {
-    const issue = findRecentIssueDetails(issueKey)
-    return {
-      label: `${issueKey}: ${issue.summary}`,
-      click: (): void => {
-        startSession({
-          issueKey,
-          summary: issue.summary,
-          bookingCode: issue.bookingCode,
-          taskType: issue.taskType ?? inferTaskType(issueKey)
-        })
-      }
-    }
-  })
-
-  const menu = Menu.buildFromTemplate([
-    {
-      label: active ? `Active: ${active.jiraIssueKey}` : 'Active: none',
-      enabled: false
-    },
-    {
-      label: 'Show TimeCal',
-      click: () => {
-        if (!mainWindow) return
-        mainWindow.show()
-        mainWindow.focus()
-      }
-    },
-    {
-      label: 'Stop current task',
-      enabled: Boolean(active),
-      click: () => {
-        stopActiveSession()
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quick switch task',
-      submenu:
-        quickSwitchItems.length > 0
-          ? quickSwitchItems
-          : [
-              {
-                label: 'No recent tasks',
-                enabled: false
-              }
-            ]
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit',
-      click: () => {
-        isQuitting = true
-        app.quit()
-      }
-    }
-  ])
-
-  tray.setContextMenu(menu)
-}
+const worklogManager = new WorklogManager({
+  stateStore,
+  withStateUpdate,
+  getRequiredJiraSettings: () => settingsManager.getRequiredJiraSettings()
+})
 
 function createWindow(): void {
   // Create the browser window.
@@ -398,15 +63,22 @@ function createWindow(): void {
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
     }
   })
+  console.log('BrowserWindow created')
 
   mainWindow.on('ready-to-show', () => {
+    console.log('BrowserWindow ready to show')
     mainWindow?.show()
+  })
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    console.log('BrowserWindow did-finish-load fallback show')
+    if (!mainWindow?.isVisible()) mainWindow?.show()
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
@@ -417,6 +89,7 @@ function createWindow(): void {
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
   if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+    console.log('Loading renderer from URL:', process.env['ELECTRON_RENDERER_URL'])
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
     mainWindow.loadFile(join(__dirname, '../renderer/index.html'))
@@ -433,246 +106,15 @@ function createWindow(): void {
   })
 }
 
-function registerIpcHandlers(): void {
-  ipcMain.handle('app:getSnapshot', async () => getSnapshot())
-
-  ipcMain.handle('app:saveSettings', async (_, settings: AppSettings) => {
-    return withStateUpdate(() => {
-      stateStore.get().settings = {
-        ...settings,
-        workingHours: sanitizeWorkingHoursSchedule(settings.workingHours),
-        customTaskCategories: settings.customTaskCategories.map((category, index) => ({
-          ...category,
-          color: category.color || autoCustomTaskCategoryColor(category.name, index)
-        }))
-      }
-    })
-  })
-
-  ipcMain.handle('reports:setWeeklyWorkingHours', async (_, input: SetWeeklyWorkingHoursInput) => {
-    return withStateUpdate(() => {
-      const state = stateStore.get()
-      if (!input.schedule) {
-        delete state.weeklyWorkingHoursOverrides[input.weekStartKey]
-        return
-      }
-
-      state.weeklyWorkingHoursOverrides[input.weekStartKey] = sanitizeWorkingHoursSchedule(
-        input.schedule
-      )
-    })
-  })
-
-  ipcMain.handle('jira:searchIssues', async (_, input: SearchIssuesInput) => {
-    const settings = ensureJiraSettings()
-    return jiraClient.searchIssues({
-      baseUrl: settings.jiraBaseUrl,
-      email: settings.jiraEmail,
-      apiToken: settings.jiraApiToken,
-      bookingCodeField: settings.jiraBookingCodeField,
-      query: input.query,
-      maxResults: input.maxResults ?? 20
-    })
-  })
-
-  ipcMain.handle('task:start', async (_, input: StartTaskInput) => startSession(input))
-
-  ipcMain.handle('task:switch', async (_, input: StartTaskInput) => startSession(input))
-
-  ipcMain.handle('task:updateTransitions', async (_, input: UpdateTaskTransitionsInput) =>
-    updateTaskTransitions(input)
-  )
-
-  ipcMain.handle('task:stopActive', async () => stopActiveSession())
-
-  ipcMain.handle('calendar:pull', async () => {
-    return performCalendarPull(true, true)
-  })
-
-  ipcMain.handle('calendar:planning:create', async (_, input: CreatePlanningEventInput) => {
-    return withStateUpdate(() => {
-      stateStore.get().calendarEvents.push({
-        id: crypto.randomUUID(),
-        subject: input.subject ?? DEFAULT_OFF_TASK_SUBJECT,
-        startIso: input.startIso,
-        endIso: input.endIso,
-        source: 'off-task',
-        plannedMinutes: sanitizePlannedMinutes(input.plannedMinutes)
-      })
-    })
-  })
-
-  ipcMain.handle('calendar:planning:update', async (_, input: UpdatePlanningEventInput) => {
-    return withStateUpdate(() => {
-      const event = stateStore.get().calendarEvents.find((e) => e.id === input.id)
-      if (event) {
-        event.startIso = input.startIso
-        event.endIso = input.endIso
-        if (input.subject !== undefined) event.subject = input.subject
-        if (input.plannedMinutes !== undefined) {
-          event.plannedMinutes = sanitizePlannedMinutes(input.plannedMinutes)
-        }
-      }
-    })
-  })
-
-  ipcMain.handle('calendar:planning:delete', async (_, input: DeletePlanningEventInput) => {
-    return withStateUpdate(() => {
-      const s = stateStore.get()
-      s.calendarEvents = s.calendarEvents.filter((e) => e.id !== input.id)
-      s.calendarLinks = s.calendarLinks.filter((l) => l.eventId !== input.id)
-    })
-  })
-
-  ipcMain.handle('calendar:classify', async (_, input: SetCalendarClassificationInput) => {
-    return withStateUpdate(() => {
-      const state = stateStore.get()
-      const calendarEvent = state.calendarEvents.find((item) => item.id === input.eventId)
-      const existing = state.calendarLinks.find((item) => item.eventId === input.eventId)
-      const nextCustomTaskCategory =
-        input.classification === 'custom-task' ? input.customTaskCategory : undefined
-
-      if (calendarEvent && isOffTaskSource(calendarEvent.source)) {
-        // Off-task blocks must never be ignored from calculations.
-        if (input.classification === 'ignored') return
-        if (input.classification === 'custom-task' && nextCustomTaskCategory) {
-          calendarEvent.subject = nextCustomTaskCategory
-        } else if (input.classification !== 'custom-task') {
-          calendarEvent.subject = DEFAULT_OFF_TASK_SUBJECT
-        }
-      }
-
-      if (existing) {
-        existing.classification = input.classification
-        existing.otherTicketKey = input.otherTicketKey
-        existing.customTaskCategory = nextCustomTaskCategory
-      } else {
-        state.calendarLinks.push({
-          eventId: input.eventId,
-          classification: input.classification,
-          otherTicketKey: input.otherTicketKey,
-          customTaskCategory: nextCustomTaskCategory
-        })
-      }
-    })
-  })
-
-  ipcMain.handle('customTask:addManual', async (_, input: AddManualCustomTaskInput) => {
-    return withStateUpdate(() => {
-      stateStore.get().manualCustomTaskEntries.push({
-        id: crypto.randomUUID(),
-        date: input.date,
-        minutes: input.minutes,
-        category: input.category,
-        notes: input.notes
-      })
-    })
-  })
-
-  // Backward-compatible IPC alias for older renderer builds.
-  ipcMain.handle('offTask:addManual', async (_, input: AddManualCustomTaskInput) => {
-    return withStateUpdate(() => {
-      stateStore.get().manualCustomTaskEntries.push({
-        id: crypto.randomUUID(),
-        date: input.date,
-        minutes: input.minutes,
-        category: input.category,
-        notes: input.notes
-      })
-    })
-  })
-
-  ipcMain.handle(
-    'worklog:buildDraft',
-    async (_, input?: BuildWorklogDraftInput): Promise<WorklogDraft> => {
-      const snapshot = getSnapshot()
-      const request = input ?? {}
-      const latestJiraSession = [...snapshot.state.sessions]
-        .reverse()
-        .find(
-          (item) =>
-            (item.taskType ?? inferTaskType(item.jiraIssueKey)) === 'jira' &&
-            (Boolean(item.endIso) || item.id === snapshot.activeSession?.id)
-        )
-      const session = request.sessionId
-        ? snapshot.state.sessions.find((item) => item.id === request.sessionId)
-        : latestJiraSession
-
-      if (!session) {
-        throw new Error('No session found to build a worklog draft.')
-      }
-
-      if ((session.taskType ?? inferTaskType(session.jiraIssueKey)) !== 'jira') {
-        throw new Error('Only Jira tasks can be drafted into a Jira worklog.')
-      }
-
-      const workingHours = request.weekStartKey
-        ? (snapshot.state.weeklyWorkingHoursOverrides[request.weekStartKey] ??
-          snapshot.state.settings.workingHours)
-        : (snapshot.state.weeklyWorkingHoursOverrides[
-            getWeekStartKey(new Date(session.startIso))
-          ] ?? snapshot.state.settings.workingHours)
-
-      const alreadyLoggedSeconds = snapshot.state.loggedWorklogs
-        .filter(
-          (entry) =>
-            entry.sourceSessionId === session.id &&
-            sameRange(entry, request.rangeStartIso, request.rangeEndIso)
-        )
-        .reduce((sum, entry) => sum + entry.timeSpentSeconds, 0)
-
-      return buildWorklogDraft({
-        session,
-        nowIso: new Date().toISOString(),
-        calendarEvents: snapshot.state.calendarEvents,
-        calendarLinks: snapshot.state.calendarLinks,
-        workingHours,
-        rangeStartIso: request.rangeStartIso,
-        rangeEndIso: request.rangeEndIso,
-        alreadyLoggedSeconds
-      })
-    }
-  )
-
-  ipcMain.handle('worklog:push', async (_, draft: WorklogDraft) => {
-    const settings = ensureJiraSettings()
-    await jiraClient.pushWorklog({
-      baseUrl: settings.jiraBaseUrl,
-      email: settings.jiraEmail,
-      apiToken: settings.jiraApiToken,
-      worklog: {
-        issueKey: draft.issueKey,
-        startedIso: draft.startedIso,
-        timeSpentSeconds: draft.timeSpentSeconds,
-        comment: draft.comment
-      }
-    })
-
-    withStateUpdate(() => {
-      stateStore.get().loggedWorklogs.push({
-        id: crypto.randomUUID(),
-        issueKey: draft.issueKey,
-        startedIso: draft.startedIso,
-        timeSpentSeconds: Math.max(0, Math.floor(draft.timeSpentSeconds)),
-        loggedAtIso: new Date().toISOString(),
-        sourceSessionId: draft.sourceSessionId,
-        rangeStartIso: draft.rangeStartIso,
-        rangeEndIso: draft.rangeEndIso
-      })
-    })
-
-    return true
-  })
-}
-
 // This method will be called when Electron has finished
 // initialization and is ready to create browser windows.
 // Some APIs can only be used after this event occurs.
 app.whenReady().then(() => {
+  console.log('APP READY - Initialising Classes')
   stateStore.load()
 
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.electron')
+  electronApp.setAppUserModelId('com.timecal.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
@@ -681,41 +123,62 @@ app.whenReady().then(() => {
     optimizer.watchWindowShortcuts(window)
   })
 
-  registerIpcHandlers()
-
+  ipcMain.handle('app:getSnapshot', async () => getSnapshot())
+  settingsManager.registerIpcHandlers(ipcMain)
+  taskManager.registerIpcHandlers(ipcMain)
+  eventManager.registerIpcHandlers(ipcMain)
+  worklogManager.registerIpcHandlers(ipcMain)
+  console.log('APP READY - Creating Window')
   createWindow()
+  console.log('APP READY - Window Created, Setting up Auto Updates')
+  setupAutoUpdates(app)
 
-  setupAutoUpdates()
-
-  // Pull Outlook calendar on startup (incremental with history) and every 15 minutes thereafter.
-  // Using incremental on startup preserves the existing cache: events already fetched in previous
-  // sessions are kept and only new/modified events are merged in.  If there is no prior
-  // calendarLastPulledIso the incremental path fetches all events in the window (same net effect
-  // as a full pull but without discarding the cache first).
+  // On startup, show cached calendar data immediately from stateStore.load(), then run a
+  // one-time full refresh in the background to reconcile everything without blocking launch.
   // Errors are logged but do not crash the app.
-  performCalendarPull(false, true).catch((err) =>
-    console.error('Initial calendar pull failed:', err)
-  )
+  setImmediate(() => {
+    eventManager
+      .performCalendarPull(true, true)
+      .catch((err) => console.error('Initial background full calendar pull failed:', err))
+  })
+
+  // Continue with periodic incremental refreshes during runtime.
   setInterval(
     () =>
-      performCalendarPull(false).catch((err) =>
-        console.error('Scheduled calendar pull failed:', err)
-      ),
+      eventManager
+        .performCalendarPull(false)
+        .catch((err) => console.error('Scheduled calendar pull failed:', err)),
     15 * 60 * 1000
   )
-
-  tray = new Tray(icon)
-  tray.on('double-click', () => {
-    if (!mainWindow) return
-    mainWindow.show()
-    mainWindow.focus()
+  console.log(
+    "SETTING UP TRAY MANAGER WITH SNAPSHOT AND TASK MANAGER'S getRecentIssueDetails, startSession, stopActiveSession METHODS, AND APP QUIT/SHOW BEHAVIOURS"
+  )
+  trayManager = new TrayManager({
+    icon,
+    getSnapshot: () => getSnapshot(),
+    getRecentIssueDetails: (issueKey) => taskManager.getRecentIssueDetails(issueKey),
+    startSession: (input) => {
+      taskManager.startSession(input)
+    },
+    stopActiveSession: () => {
+      taskManager.stopActiveSession()
+    },
+    showMainWindow: () => {
+      if (!mainWindow) return
+      mainWindow.show()
+      mainWindow.focus()
+    },
+    quitApp: () => {
+      isQuitting = true
+      app.quit()
+    }
   })
-  refreshTray()
-
+  trayManager.create()
+  console.log('APP READY - Tray Manager Set Up')
   setInterval(() => {
-    if (getActiveSession()) {
+    if (taskManager.getActiveSession()) {
       mainWindow?.webContents.send(STATE_CHANGED_CHANNEL, getSnapshot())
-      refreshTray()
+      trayManager?.refresh()
     }
   }, 30000)
 
@@ -737,9 +200,6 @@ app.on('window-all-closed', () => {
 
 app.on('before-quit', () => {
   isQuitting = true
-  tray?.destroy()
-  tray = null
+  trayManager?.destroy()
+  trayManager = null
 })
-
-// In this file you can include the rest of your app's specific main process
-// code. You can also put them in separate files and require them here.

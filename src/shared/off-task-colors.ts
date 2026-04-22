@@ -59,5 +59,3 @@ export const autoCustomTaskCategoryColor = (name: string, index = 0): string => 
   const lightness = 46 + (hash % 10)
   return hslToHex(hue, saturation, lightness)
 }
-
-export const autoOffTaskCategoryColor = autoCustomTaskCategoryColor

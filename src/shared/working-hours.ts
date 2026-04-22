@@ -55,17 +55,6 @@ const sanitizeDailyWorkingHours = (
   } else if (typeof c.lunchDurationMins === 'string') {
     const parsed = Number.parseInt(c.lunchDurationMins, 10)
     if (!Number.isNaN(parsed) && parsed >= 0) result.lunchDurationMins = parsed
-  } else {
-    // Legacy migration: derive duration from lunchStart/lunchEnd if present
-    const lunchStartRaw = typeof c.lunchStart === 'string' ? c.lunchStart.trim() : ''
-    const lunchEndRaw = typeof c.lunchEnd === 'string' ? c.lunchEnd.trim() : ''
-    if (lunchStartRaw && lunchEndRaw) {
-      const lunchStartMins = parseTimeToMinutes(lunchStartRaw)
-      const lunchEndMins = parseTimeToMinutes(lunchEndRaw)
-      if (lunchStartMins !== null && lunchEndMins !== null && lunchEndMins > lunchStartMins) {
-        result.lunchDurationMins = lunchEndMins - lunchStartMins
-      }
-    }
   }
 
   return result

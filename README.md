@@ -23,36 +23,35 @@ $ npm run dev
 ### Build
 
 ```bash
-# For windows
+# For Windows
 $ npm run build:win
-
-# For macOS
-$ npm run build:mac
-
-# For Linux
-$ npm run build:linux
 ```
 
 ## GitHub Auto Updates
 
 This app is configured to publish updates and consume updates from GitHub Releases in rees-apollo/timecal.
 
-### One-time setup
+### Release automation
 
-1. Create a classic GitHub personal access token with repo scope.
-2. Set the token in your shell before publishing releases:
+Release lifecycle is fully automated by GitHub Actions:
 
-```powershell
-$env:GH_TOKEN = "your_github_token"
-```
+1. The `Release Please` workflow watches `main` and opens/updates a release PR.
+2. Merging that PR tags a version and creates a GitHub Release.
+3. The `Build And Publish Release Assets` workflow runs automatically on release publish and uploads Windows installer artifacts.
 
-3. Build and publish a release artifact:
+Required repository settings/secrets:
+
+1. Keep GitHub Actions enabled for the repository.
+2. Ensure workflow `GITHUB_TOKEN` has `contents: write` and `pull-requests: write` permissions.
+3. No manual local publishing step is required.
+
+### Local builds (optional)
+
+Use local build commands only for verification/testing; releases are published by workflows:
 
 ```bash
-npm run make
+npm run build:win
 ```
-
-The generated latest.yml and installer artifacts in dist are uploaded to the GitHub release by electron-builder when GH_TOKEN is set.
 
 ### Client update behavior
 
@@ -62,5 +61,4 @@ The generated latest.yml and installer artifacts in dist are uploaded to the Git
 
 ### Notes
 
-- For private repositories, clients also need GH_TOKEN available at runtime to download release assets.
 - For public repositories, clients do not need a runtime token.

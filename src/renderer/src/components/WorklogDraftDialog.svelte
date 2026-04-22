@@ -18,8 +18,6 @@
     isBusy?: boolean
     pushWorklog: () => Promise<void>
   } = $props()
-
-  const formatMinutes = (seconds: number): string => `${Math.max(0, Math.round(seconds / 60))}m`
 </script>
 
 <Dialog.Root bind:open={draftDialogOpen}>
@@ -35,7 +33,9 @@
           <div>Issue</div>
           <div class="font-semibold">{worklogDraft.issueKey}</div>
           <div>Time to log</div>
-          <div class="font-semibold">{formatMinutes(worklogDraft.timeSpentSeconds)}</div>
+          <div class="font-semibold">
+            {Math.max(0, Math.round(worklogDraft.timeSpentSeconds / 60))}m
+          </div>
         </div>
 
         <div>

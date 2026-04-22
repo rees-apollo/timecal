@@ -8,27 +8,20 @@
   } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
-  import { Input } from '$lib/components/ui/input'
-  import { Label } from '$lib/components/ui/label'
   import { toast } from 'svelte-sonner'
-  import * as Table from '$lib/components/ui/table'
   import PlusIcon from '@lucide/svelte/icons/plus'
-  import Trash2Icon from '@lucide/svelte/icons/trash-2'
+  import TaskTransitionsTable from './TaskTransitionsTable.svelte'
   import {
-    calculateWorkingSecondsBetween,
-    getWeekStartDate,
-    getWeekStartKey,
-    sanitizeWorkingHoursSchedule
-  } from '../../../shared/working-hours'
-
-  type TransitionDraftRow = {
-    id: string
-    startLocal: string
-    issueKey: string
-    summary: string
-    bookingCode: string
-    taskType: 'jira' | 'custom'
-  }
+    applyKnownTaskToRow,
+    buildKnownTasksByKey,
+    buildRowDurationLabels,
+    buildTransitionsFromRows,
+    nowLocalDateTimeInput,
+    toTransitionRows,
+    type TransitionDraftRow
+  } from '$lib/helpers/task-transitions'
+  import { sanitizeWorkingHoursSchedule } from '../../../shared/working-hours'
+  import { calculateWorkingSecondsWithWeeklyOverrides } from '../../../shared/working-time-overrides'
 
   let {
     open = $bindable(false),
@@ -52,108 +45,12 @@
 
   const defaultWorkingHours = $derived(sanitizeWorkingHoursSchedule(workingHours))
 
-  const getEffectiveWorkingHoursForDate = (date: Date): WorkingHoursSchedule => {
-    const weekStartKey = getWeekStartKey(date)
-    return sanitizeWorkingHoursSchedule(
-      weeklyWorkingHoursOverrides[weekStartKey] ?? defaultWorkingHours
-    )
-  }
-
-  const calculateWorkingSecondsWithWeeklyOverrides = (start: Date, end: Date): number => {
-    if (end <= start) return 0
-
-    let totalSeconds = 0
-    let cursor = new Date(start)
-
-    while (cursor < end) {
-      const weekStart = getWeekStartDate(cursor)
-      const nextWeekStart = new Date(weekStart)
-      nextWeekStart.setDate(nextWeekStart.getDate() + 7)
-
-      const intervalEnd = new Date(Math.min(end.getTime(), nextWeekStart.getTime()))
-      if (intervalEnd <= cursor) break
-
-      const schedule = getEffectiveWorkingHoursForDate(cursor)
-      totalSeconds += calculateWorkingSecondsBetween(cursor, intervalEnd, schedule)
-      cursor = intervalEnd
-    }
-
-    return totalSeconds
-  }
-
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
 
   const knownTasksByKey = $derived.by(() => {
-    const map = new Map<
-      string,
-      {
-        summary: string
-        bookingCode?: string
-        taskType: 'jira' | 'custom'
-      }
-    >()
-
-    for (const issue of jiraResults) {
-      map.set(issue.key, {
-        summary: issue.summary,
-        bookingCode: issue.bookingCode,
-        taskType: 'jira'
-      })
-    }
-
-    for (const category of customTaskCategories) {
-      map.set(category.name, {
-        summary: category.name,
-        bookingCode: category.bookingCode || undefined,
-        taskType: 'custom'
-      })
-    }
-
-    for (const session of sessions) {
-      map.set(session.jiraIssueKey, {
-        summary: session.jiraIssueSummary,
-        bookingCode: session.bookingCode,
-        taskType: session.taskType ?? 'jira'
-      })
-    }
-
-    return map
+    return buildKnownTasksByKey(jiraResults, customTaskCategories, sessions)
   })
-
-  const knownTaskOptions = $derived.by(() => {
-    const options: Array<{ key: string; summary: string; taskType: 'jira' | 'custom' }> = []
-    for (const [key, value] of knownTasksByKey.entries()) {
-      options.push({ key, summary: value.summary, taskType: value.taskType })
-    }
-    return options.sort((a, b) => a.key.localeCompare(b.key))
-  })
-
-  const toLocalInput = (iso: string): string => {
-    const date = new Date(iso)
-    if (Number.isNaN(date.getTime())) return ''
-    const local = new Date(date.getTime() - date.getTimezoneOffset() * 60_000)
-    return local.toISOString().slice(0, 16)
-  }
-
-  const nowLocalInput = (): string => {
-    const now = new Date()
-    const local = new Date(now.getTime() - now.getTimezoneOffset() * 60_000)
-    return local.toISOString().slice(0, 16)
-  }
-
-  const toTransitionRows = (items: TaskSession[]): TransitionDraftRow[] => {
-    return [...items]
-      .sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime())
-      .map((session) => ({
-        id: session.id,
-        startLocal: toLocalInput(session.startIso),
-        issueKey: session.jiraIssueKey,
-        summary: session.jiraIssueSummary,
-        bookingCode: session.bookingCode ?? '',
-        taskType: session.taskType ?? 'jira'
-      }))
-  }
 
   $effect(() => {
     if (open && !wasOpen) {
@@ -174,29 +71,9 @@
     const row = rows[index]
     if (!row) return
 
-    const key = (nextKey ?? row.issueKey).trim()
-    const known = key ? knownTasksByKey.get(key) : undefined
-    if (!known) return
-
-    updateRow(index, {
-      summary: row.summary.trim() ? row.summary : known.summary,
-      bookingCode: row.bookingCode.trim() ? row.bookingCode : (known.bookingCode ?? ''),
-      taskType: known.taskType
-    })
-  }
-
-  const addRow = (): void => {
-    rows = [
-      ...rows,
-      {
-        id: crypto.randomUUID(),
-        startLocal: nowLocalInput(),
-        issueKey: '',
-        summary: '',
-        bookingCode: '',
-        taskType: 'jira'
-      }
-    ]
+    const next = applyKnownTaskToRow(row, knownTasksByKey, nextKey)
+    if (!next) return
+    updateRow(index, next)
   }
 
   const removeRow = (index: number): void => {
@@ -204,68 +81,30 @@
   }
 
   const rowDurations = $derived(
-    rows.map((row, index) => {
-      const start = new Date(row.startLocal)
-      if (Number.isNaN(start.getTime())) return null
-
-      const next = rows[index + 1]
-      if (!next) return 'active'
-
-      const end = new Date(next.startLocal)
-      if (Number.isNaN(end.getTime())) return null
-
-      if (end <= start) return null
-      const totalMinutes = Math.round(calculateWorkingSecondsWithWeeklyOverrides(start, end) / 60)
-      if (totalMinutes < 0) return null
-      if (totalMinutes < 60) return `${totalMinutes}m`
-      const hours = Math.floor(totalMinutes / 60)
-      const minutes = totalMinutes % 60
-      return minutes === 0 ? `${hours}h` : `${hours}h ${minutes}m`
-    })
+    buildRowDurationLabels(rows, (start, end) =>
+      calculateWorkingSecondsWithWeeklyOverrides({
+        start,
+        end,
+        defaultWorkingHours,
+        weeklyWorkingHoursOverrides
+      })
+    )
   )
 
   const save = async (): Promise<void> => {
-    const transitions: TaskTransitionInput[] = []
-    for (let index = 0; index < rows.length; index += 1) {
-      const row = rows[index]
-      const issueKey = row.issueKey.trim()
-      const summary = row.summary.trim() || issueKey
-      if (!issueKey) {
-        toast.error(`Row ${index + 1}: task key is required.`)
-        return
-      }
-
-      const startDate = new Date(row.startLocal)
-      if (Number.isNaN(startDate.getTime())) {
-        toast.error(`Row ${index + 1}: start time is invalid.`)
-        return
-      }
-
-      transitions.push({
-        id: row.id,
-        issueKey,
-        summary,
-        bookingCode: row.bookingCode.trim() || undefined,
-        taskType: row.taskType,
-        startIso: startDate.toISOString()
-      })
+    const result = buildTransitionsFromRows(rows)
+    if (result.error) {
+      toast.error(result.error)
+      return
     }
 
-    transitions.sort((a, b) => new Date(a.startIso).getTime() - new Date(b.startIso).getTime())
-    for (let index = 1; index < transitions.length; index += 1) {
-      if (transitions[index].startIso === transitions[index - 1].startIso) {
-        toast.error('Each transition must have a unique start time.')
-        return
-      }
-    }
-
-    await onSave(transitions)
+    await onSave(result.transitions)
     open = false
   }
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="overflow-y-auto sm:max-w-5xl">
+  <Dialog.Content class="overflow-y-auto w-[min(96vw,64rem)] sm:max-w-5xl overflow-x-hidden">
     <Dialog.Header>
       <Dialog.Title>Task Transition History</Dialog.Title>
       <Dialog.Description>
@@ -274,109 +113,34 @@
       </Dialog.Description>
     </Dialog.Header>
     <div class="space-y-3 py-2">
-      <div class="rounded-xl border mb-4 overflow-hidden">
-        <Table.Root>
-          <Table.Header>
-            <Table.Row class="bg-muted/30 hover:bg-muted/30">
-              <Table.Head class="w-52">Start Time</Table.Head>
-              <Table.Head class="w-40">Task</Table.Head>
-              <Table.Head>Summary</Table.Head>
-              <Table.Head class="w-32">Booking</Table.Head>
-              <Table.Head class="w-12"></Table.Head>
-            </Table.Row>
-          </Table.Header>
-          <Table.Body>
-            {#if rows.length === 0}
-              <Table.Row>
-                <Table.Cell colspan={5} class="py-4 text-center text-sm text-muted-foreground">
-                  No transitions yet.
-                </Table.Cell>
-              </Table.Row>
-            {:else}
-              {#each rows as row, index (row.id)}
-                <Table.Row>
-                  <Table.Cell class="align-top">
-                    <Label class="sr-only" for={`start-${row.id}`}>Start time</Label>
-                    <Input
-                      id={`start-${row.id}`}
-                      type="datetime-local"
-                      value={row.startLocal}
-                      onchange={(event) =>
-                        updateRow(index, {
-                          startLocal: (event.currentTarget as HTMLInputElement).value
-                        })}
-                    />
-                    {#if rowDurations[index] === 'active'}
-                      <p class="mt-0.5 text-xs text-emerald-600 dark:text-emerald-400">● active</p>
-                    {:else if rowDurations[index]}
-                      <p class="mt-0.5 text-xs text-muted-foreground">{rowDurations[index]}</p>
-                    {/if}
-                  </Table.Cell>
-
-                  <Table.Cell class="align-top">
-                    <Label class="sr-only" for={`task-${row.id}`}>Task</Label>
-                    <Input
-                      id={`task-${row.id}`}
-                      list="task-transition-options"
-                      value={row.issueKey}
-                      onchange={(event) => {
-                        const nextKey = (event.currentTarget as HTMLInputElement).value
-                        updateRow(index, { issueKey: nextKey })
-                        applyKnownTask(index, nextKey)
-                      }}
-                    />
-                  </Table.Cell>
-
-                  <Table.Cell class="align-top">
-                    <Label class="sr-only" for={`summary-${row.id}`}>Summary</Label>
-                    <Input
-                      id={`summary-${row.id}`}
-                      value={row.summary}
-                      onchange={(event) =>
-                        updateRow(index, {
-                          summary: (event.currentTarget as HTMLInputElement).value
-                        })}
-                    />
-                  </Table.Cell>
-
-                  <Table.Cell class="align-top">
-                    <Label class="sr-only" for={`booking-${row.id}`}>Booking code</Label>
-                    <Input
-                      id={`booking-${row.id}`}
-                      value={row.bookingCode}
-                      onchange={(event) =>
-                        updateRow(index, {
-                          bookingCode: (event.currentTarget as HTMLInputElement).value
-                        })}
-                    />
-                  </Table.Cell>
-
-                  <Table.Cell class="align-top text-right">
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      class="text-muted-foreground"
-                      onclick={() => removeRow(index)}
-                    >
-                      <Trash2Icon class="size-4" />
-                      <span class="sr-only">Remove transition</span>
-                    </Button>
-                  </Table.Cell>
-                </Table.Row>
-              {/each}
-            {/if}
-          </Table.Body>
-        </Table.Root>
-      </div>
-
-      <datalist id="task-transition-options">
-        {#each knownTaskOptions as option (option.key)}
-          <option value={option.key}>{option.summary}</option>
-        {/each}
-      </datalist>
+      <TaskTransitionsTable
+        {rows}
+        {rowDurations}
+        {jiraResults}
+        {customTaskCategories}
+        {sessions}
+        {updateRow}
+        {applyKnownTask}
+        {removeRow}
+      />
 
       <div class="flex justify-between">
-        <Button variant="secondary" onclick={addRow}>
+        <Button
+          variant="secondary"
+          onclick={() => {
+            rows = [
+              ...rows,
+              {
+                id: crypto.randomUUID(),
+                startLocal: nowLocalDateTimeInput(),
+                issueKey: '',
+                summary: '',
+                bookingCode: '',
+                taskType: 'jira'
+              }
+            ]
+          }}
+        >
           <PlusIcon class="mr-2 size-4" />
           Add Transition
         </Button>

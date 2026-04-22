@@ -5,42 +5,54 @@
   import { Badge } from '$lib/components/ui/badge'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'
+  import {
+    getSortedFilteredCustomTaskCategories,
+    getSortedFilteredTicketKeys,
+    getTicketSummaryByKey
+  } from '$lib/helpers/task-search/options'
   import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down'
   import XIcon from '@lucide/svelte/icons/x'
 
+  type TaskSearchData = {
+    jiraResults?: JiraIssue[]
+    customTaskCategories?: CustomTaskCategory[]
+    sessions?: TaskSession[]
+    recentIssueKeys?: string[]
+  }
+
+  type TaskSearchSelection = {
+    primaryIssueKey?: string
+    currentKey?: string
+    currentCustomTaskCategory?: string
+  }
+
+  type TaskSearchState = {
+    jiraQuery: string
+    activeTab: 'jira' | 'custom'
+  }
+
+  type TaskSearchUi = {
+    useSelectionTrigger?: boolean
+    triggerLabel?: string
+    triggerButtonClass?: string
+    popoverContentClass?: string
+  }
+
   let {
-    jiraResults = [],
-    jiraQuery = $bindable(''),
-    customTaskCategories = [],
-    sessions = [],
-    recentIssueKeys = [],
-    primaryIssueKey = '',
-    currentKey = '',
-    currentCustomTaskCategory = '',
-    activeTab = $bindable<'jira' | 'custom'>('jira'),
-    useSelectionTrigger = false,
-    triggerLabel = 'Select task',
-    triggerButtonClass = 'h-8 w-[220px] justify-between rounded-full text-sm',
-    popoverContentClass = 'w-[320px] p-3',
+    data = {},
+    selection = {},
+    searchState = $bindable({ jiraQuery: '', activeTab: 'jira' }),
+    ui = {},
     disabled = false,
     onClearSelection,
     onSearch,
     onSelectJira,
     onSelectCustomTask
   }: {
-    jiraResults?: JiraIssue[]
-    jiraQuery?: string
-    customTaskCategories?: CustomTaskCategory[]
-    sessions?: TaskSession[]
-    recentIssueKeys?: string[]
-    primaryIssueKey?: string
-    currentKey?: string
-    currentCustomTaskCategory?: string
-    activeTab?: 'jira' | 'custom'
-    useSelectionTrigger?: boolean
-    triggerLabel?: string
-    triggerButtonClass?: string
-    popoverContentClass?: string
+    data?: TaskSearchData
+    selection?: TaskSearchSelection
+    searchState?: TaskSearchState
+    ui?: TaskSearchUi
     disabled?: boolean
     onClearSelection?: () => Promise<void> | void
     onSearch?: () => Promise<void>
@@ -48,75 +60,45 @@
     onSelectCustomTask?: (categoryName: string) => void
   } = $props()
 
+  const jiraResults = $derived(data.jiraResults ?? [])
+  const customTaskCategories = $derived(data.customTaskCategories ?? [])
+  const sessions = $derived(data.sessions ?? [])
+  const recentIssueKeys = $derived(data.recentIssueKeys ?? [])
+  const primaryIssueKey = $derived(selection.primaryIssueKey ?? '')
+  const currentKey = $derived(selection.currentKey ?? '')
+  const currentCustomTaskCategory = $derived(selection.currentCustomTaskCategory ?? '')
+  const useSelectionTrigger = $derived(ui.useSelectionTrigger ?? false)
+  const triggerLabel = $derived(ui.triggerLabel ?? 'Select task')
+  const triggerButtonClass = $derived(
+    ui.triggerButtonClass ?? 'h-8 w-[220px] justify-between rounded-full text-sm'
+  )
+  const popoverContentClass = $derived(ui.popoverContentClass ?? 'w-[320px] p-3')
+
   let debounceTimer: ReturnType<typeof setTimeout> | null = null
   let popoverOpen = $state(false)
 
-  const normalize = (value: string): string => value.trim().toLowerCase()
-  const customCategoryNames = $derived(new Set(customTaskCategories.map((item) => item.name)))
-  const isCustomCategoryName = (key: string): boolean => customCategoryNames.has(key)
-  const sessionTaskType = (session: TaskSession): 'jira' | 'custom' =>
-    session.taskType ?? (isCustomCategoryName(session.jiraIssueKey) ? 'custom' : 'jira')
-
-  const ticketSummaryByKey = (key: string): string | undefined => {
-    const issue = jiraResults.find((item) => item.key === key)
-    if (issue) return issue.summary
-    const session = [...sessions]
-      .reverse()
-      .find((item) => sessionTaskType(item) === 'jira' && item.jiraIssueKey === key)
-    return session?.jiraIssueSummary
-  }
-
-  const orderedTicketKeys = $derived(
-    [
-      !isCustomCategoryName(primaryIssueKey) ? primaryIssueKey : '',
-      !isCustomCategoryName(currentKey) ? currentKey : '',
-      ...jiraResults.map((item) => item.key),
-      ...recentIssueKeys.filter((key) => !isCustomCategoryName(key)),
-      ...[...sessions]
-        .reverse()
-        .filter((item) => sessionTaskType(item) === 'jira')
-        .map((item) => item.jiraIssueKey)
-    ].filter((key): key is string => Boolean(key))
-  )
-
-  const uniqueTicketKeys = $derived([...new Set(orderedTicketKeys)])
-
-  const filteredTicketKeys = $derived(
-    uniqueTicketKeys.filter((key) => {
-      const search = normalize(jiraQuery)
-      if (!search) return true
-      const summary = ticketSummaryByKey(key) ?? ''
-      return normalize(`${key} ${summary}`).includes(search)
-    })
-  )
+  const ticketSummaryByKey = (key: string): string | undefined =>
+    getTicketSummaryByKey({ key, jiraResults, sessions, customTaskCategories })
 
   const sortedFilteredTicketKeys = $derived(
-    [...filteredTicketKeys].sort((a, b) => {
-      if (!currentKey) return 0
-      const aIsCurrent = a === currentKey
-      const bIsCurrent = b === currentKey
-      if (aIsCurrent === bIsCurrent) return 0
-      return aIsCurrent ? -1 : 1
+    getSortedFilteredTicketKeys({
+      jiraQuery: searchState.jiraQuery,
+      jiraResults,
+      sessions,
+      recentIssueKeys,
+      customTaskCategories,
+      primaryIssueKey,
+      currentKey
     })
   )
 
-  const customTicketInput = $derived(jiraQuery.trim())
-
-  const filteredCustomTaskCategories = $derived(
-    customTaskCategories.filter((category) => {
-      const search = normalize(jiraQuery)
-      if (!search) return true
-      return normalize(`${category.name} ${category.bookingCode ?? ''}`).includes(search)
-    })
-  )
+  const customTicketInput = $derived(searchState.jiraQuery.trim())
 
   const sortedFilteredCustomTaskCategories = $derived(
-    [...filteredCustomTaskCategories].sort((a, b) => {
-      if (!currentCustomTaskCategory) return 0
-      const aIsCurrent = a.name === currentCustomTaskCategory
-      const bIsCurrent = b.name === currentCustomTaskCategory
-      if (aIsCurrent === bIsCurrent) return 0
-      return aIsCurrent ? -1 : 1
+    getSortedFilteredCustomTaskCategories({
+      jiraQuery: searchState.jiraQuery,
+      customTaskCategories,
+      currentCustomTaskCategory
     })
   )
 
@@ -129,32 +111,15 @@
     if (!onSearch) return
     if (debounceTimer) clearTimeout(debounceTimer)
     debounceTimer = setTimeout(() => {
-      if (jiraQuery.trim().length >= 2) void onSearch!()
+      if (searchState.jiraQuery.trim().length >= 2) void onSearch!()
     }, 350)
   }
 
   const hasCurrentSelection = $derived(Boolean(currentKey || currentCustomTaskCategory))
-
-  const selectJira = (issueKey: string): void => {
-    onSelectJira?.(issueKey)
-    popoverOpen = false
-  }
-
-  const selectCustomTask = (categoryName: string): void => {
-    onSelectCustomTask?.(categoryName)
-    popoverOpen = false
-  }
-
-  const clearSelection = async (event: MouseEvent | KeyboardEvent): Promise<void> => {
-    event.preventDefault()
-    event.stopPropagation()
-    await onClearSelection?.()
-    popoverOpen = false
-  }
 </script>
 
 {#snippet SearchContent()}
-  <Tabs.Root bind:value={activeTab}>
+  <Tabs.Root bind:value={searchState.activeTab}>
     <Tabs.List class="w-full">
       <Tabs.Trigger value="jira" class="flex-1">Jira</Tabs.Trigger>
       <Tabs.Trigger value="custom" class="flex-1">Custom Tasks</Tabs.Trigger>
@@ -162,7 +127,7 @@
 
     <Tabs.Content value="jira" class="mt-2 space-y-2">
       <Input
-        bind:value={jiraQuery}
+        bind:value={searchState.jiraQuery}
         placeholder="Search by key or summary"
         oninput={handleJiraInput}
       />
@@ -171,7 +136,10 @@
           <button
             type="button"
             class={optionButtonClass(customTicketInput === currentKey)}
-            onclick={() => selectJira(customTicketInput)}
+            onclick={() => {
+              onSelectJira?.(customTicketInput)
+              popoverOpen = false
+            }}
           >
             <div class="font-medium">{customTicketInput}</div>
             <div class="text-xs text-muted-foreground">Use typed task key</div>
@@ -182,7 +150,10 @@
             <button
               type="button"
               class={optionButtonClass(issueKey === currentKey)}
-              onclick={() => selectJira(issueKey)}
+              onclick={() => {
+                onSelectJira?.(issueKey)
+                popoverOpen = false
+              }}
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="font-medium">{issueKey}</span>
@@ -204,14 +175,17 @@
     </Tabs.Content>
 
     <Tabs.Content value="custom" class="mt-2 space-y-2">
-      <Input bind:value={jiraQuery} placeholder="Search custom task categories" />
+      <Input bind:value={searchState.jiraQuery} placeholder="Search custom task categories" />
       <div class="max-h-48 space-y-1 overflow-y-auto pr-1">
         {#if sortedFilteredCustomTaskCategories.length > 0}
           {#each sortedFilteredCustomTaskCategories as category (category.name)}
             <button
               type="button"
               class={optionButtonClass(category.name === currentCustomTaskCategory)}
-              onclick={() => selectCustomTask(category.name)}
+              onclick={() => {
+                onSelectCustomTask?.(category.name)
+                popoverOpen = false
+              }}
             >
               <div class="flex items-center justify-between gap-2">
                 <span class="font-medium">{category.name}</span>
@@ -250,7 +224,8 @@
           class={triggerButtonClass}
           {disabled}
         >
-          <span class="min-w-0 flex-1 truncate text-left text-muted-foreground">{triggerLabel}</span>
+          <span class="min-w-0 flex-1 truncate text-left text-muted-foreground">{triggerLabel}</span
+          >
           <span class="ml-2 inline-flex shrink-0 items-center gap-1">
             {#if hasCurrentSelection && onClearSelection}
               <span
@@ -258,10 +233,18 @@
                 tabindex="0"
                 class="text-muted-foreground hover:text-foreground inline-flex size-5 items-center justify-center rounded-sm"
                 aria-label="Clear selected task"
-                onclick={clearSelection}
+                onclick={async (event) => {
+                  event.preventDefault()
+                  event.stopPropagation()
+                  await onClearSelection?.()
+                  popoverOpen = false
+                }}
                 onkeydown={async (event) => {
                   if (event.key !== 'Enter' && event.key !== ' ') return
-                  await clearSelection(event)
+                  event.preventDefault()
+                  event.stopPropagation()
+                  await onClearSelection?.()
+                  popoverOpen = false
                 }}
               >
                 <XIcon class="size-3.5" />

@@ -15,6 +15,7 @@
   import { autoCustomTaskCategoryColor } from '../../../shared/off-task-colors'
   import '@schedule-x/theme-shadcn/dist/index.css'
   import { mode } from 'mode-watcher'
+  import { untrack } from 'svelte'
 
   type AnchorRect = {
     top: number
@@ -106,12 +107,6 @@
 
   const normalizeCategoryName = (value: string | undefined): string =>
     (value ?? '').trim().toLowerCase()
-
-  type EventVisualMeta = {
-    eventId: string
-    calendarId: string
-    colorHex: string
-  }
 
   type ScheduleXCalendarPalette = {
     colorName: string
@@ -234,7 +229,7 @@
     }
 
     return {
-      calendarId: `custom-task-${slugify(customTaskCategoryName || '') || 'default'}`,
+      calendarId: 'custom-task-default',
       colorHex: '#d97706'
     }
   }
@@ -316,7 +311,8 @@
     gridHeight: number,
     calendars: Record<string, ScheduleXCalendarPalette>,
     dayBoundaries: { start: string; end: string },
-    darkMode = false
+    darkMode = false,
+    selectedDate: string | null = null
   ): CalendarInstance => {
     const eventsServicePlugin = createEventsServicePlugin()
     const dragAndDropPlugin = createDragAndDropPlugin(15)
@@ -327,6 +323,7 @@
         views: [weekView],
         defaultView: weekView.name,
         timezone: calendarTimezone,
+        ...(selectedDate ? { selectedDate: Temporal.PlainDate.from(selectedDate) } : {}),
         calendars,
         dayBoundaries: {
           start: dayBoundaries.start,
@@ -352,6 +349,11 @@
             void createPlanningEvent(next.startIso, next.endIso)
           },
           onRangeUpdate: (range): void => {
+            const rangeDate = Temporal.Instant.fromEpochMilliseconds(range.start.epochMilliseconds)
+              .toZonedDateTimeISO(calendarTimezone)
+              .toPlainDate()
+              .toString()
+            preservedDate = rangeDate
             onDisplayedWeekStartChange(getWeekStartKey(new Date(range.start.epochMilliseconds)))
           },
           onBeforeEventUpdate: (oldEvent: ScheduleXEventLike): boolean => {
@@ -377,6 +379,7 @@
 
   let gridHeight = $state(840)
   let calendarInstance = $state<CalendarInstance | null>(null)
+  let preservedDate = $state<string | null>(null)
 
   function toTemporalZonedDateTime(iso: string): Temporal.ZonedDateTime {
     return Temporal.Instant.from(iso).toZonedDateTimeISO(calendarTimezone)
@@ -415,7 +418,7 @@
                 : eventType === 'ignored'
                   ? 'ignored'
                   : 'imported'
-      const visualMeta: EventVisualMeta = {
+      const visualMeta = {
         eventId,
         calendarId,
         colorHex: eventType === 'custom-task' ? customTaskVisual.colorHex : colorHex
@@ -494,6 +497,17 @@
     })
   )
 
+  $effect(() => {
+    const sampleInput = calendarEvents.slice(0, 3)
+    const sampleMapped = scheduleXEvents.slice(0, 3)
+    console.log('[CalendarPanel] event shape debug', {
+      incomingCount: calendarEvents.length,
+      mappedCount: scheduleXEvents.length,
+      sampleInput,
+      sampleMapped
+    })
+  })
+
   const scheduleXBackgroundEvents = $derived.by(() => {
     const backgroundEvents: Array<{
       start: Temporal.ZonedDateTime
@@ -541,67 +555,19 @@
     return backgroundEvents
   })
 
-  const eventVisualMetas = $derived(
-    calendarEvents.map((event) => {
-      const eventId = String(event.id)
-      const link = linkByEventId.get(eventId)
-      const classification = link?.classification ?? getClassification(eventId)
-      const customTaskCategory =
-        link?.customTaskCategory ?? link?.offTaskCategory ?? getCustomTaskCategory(eventId)
-      const eventType =
-        classification === 'primary-task'
-          ? 'primary'
-          : classification === 'other-ticket'
-            ? 'other-ticket'
-            : classification === 'off-task' || classification === 'custom-task'
-              ? 'custom-task'
-              : classification === 'ignored'
-                ? 'ignored'
-                : isDayScopedOffTaskEvent(event)
-                  ? 'off-task'
-                  : 'unclassified'
-      const colorHex = normalizeHex(getEventColor(eventId))
-      const customTaskVisual = resolveCustomTaskCalendarVisual(customTaskCategory)
-      return {
-        eventId,
-        calendarId:
-          eventType === 'custom-task'
-            ? customTaskVisual.calendarId
-            : eventType === 'off-task'
-              ? 'off-task'
-              : eventType === 'primary'
-                ? 'primary'
-                : eventType === 'other-ticket'
-                  ? 'other-ticket'
-                  : eventType === 'ignored'
-                    ? 'ignored'
-                    : 'imported',
-        colorHex: eventType === 'custom-task' ? customTaskVisual.colorHex : colorHex
-      }
-    })
-  )
-
   const scheduleXCalendars = $derived.by(() => {
     const calendars: Record<string, ScheduleXCalendarPalette> = {
       'off-task': toScheduleXPalette('off-task', '#4338ca'),
       primary: toScheduleXPalette('primary', '#0f766e'),
       'other-ticket': toScheduleXPalette('other-ticket', '#1d4ed8'),
       imported: toScheduleXPalette('imported', '#64748b'),
-      ignored: toScheduleXPalette('ignored', '#94a3b8')
+      ignored: toScheduleXPalette('ignored', '#94a3b8'),
+      'custom-task-default': toScheduleXPalette('custom-task-default', '#d97706')
     }
 
     for (const category of customTaskCategories) {
       const categoryId = `custom-task-${slugify(category.name) || 'default'}`
       calendars[categoryId] = toScheduleXPalette(categoryId, category.color)
-    }
-
-    for (const eventMeta of eventVisualMetas) {
-      if (!calendars[eventMeta.calendarId]) {
-        calendars[eventMeta.calendarId] = toScheduleXPalette(
-          eventMeta.calendarId,
-          eventMeta.colorHex
-        )
-      }
     }
 
     return calendars
@@ -624,7 +590,8 @@
         gridHeight,
         scheduleXCalendars,
         dayBoundaries,
-        mode.current == 'dark'
+        mode.current == 'dark',
+        untrack(() => preservedDate)
       )
     }
   })
@@ -651,17 +618,17 @@
 
     updateGridHeight()
 
-    const observer = new ResizeObserver(() => {
+    const handleResize = (): void => {
       if (debounceTimer !== null) clearTimeout(debounceTimer)
       debounceTimer = setTimeout(() => {
         updateGridHeight()
       }, 150)
-    })
+    }
 
-    observer.observe(calendarContainer)
+    window.addEventListener('resize', handleResize)
 
     return () => {
-      observer.disconnect()
+      window.removeEventListener('resize', handleResize)
       if (debounceTimer !== null) clearTimeout(debounceTimer)
     }
   })
@@ -711,11 +678,11 @@
   onclick={handleDayHeaderClick}
   class="w-screen h-screen"
 >
-  {#if calendarInstance}
-    {#key cache}
+  {#key cache}
+    {#if calendarInstance}
       <ScheduleXCalendar calendarApp={calendarInstance.calendarApp} />
-    {/key}
-  {/if}
+    {/if}
+  {/key}
 </div>
 
 <style>
@@ -748,8 +715,12 @@
     line-height: 1.1;
     font-weight: 700;
     letter-spacing: 0.01em;
-    color: color-mix(in oklab, #0f172a 86%, #f8fafc 14%);
-    text-shadow: 0 1px 0 color-mix(in oklab, #f8fafc 55%, transparent);
+    color: var(--foreground);
+    text-shadow:
+      0 1px 0 var(background),
+      1px 0 0 var(background),
+      0 -1px 0 var(background),
+      -1px 0 0 var(background);
     white-space: nowrap;
     text-overflow: ellipsis;
     overflow: hidden;
