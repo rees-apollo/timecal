@@ -22,7 +22,7 @@ const isOffTaskSource = (source: string | undefined): boolean =>
   source === 'off-task' || source === 'planning'
 
 const getImportedSeriesKey = (eventId: string): string | undefined => {
-  const match = eventId.match(/^(imp_[^_]+)_/) 
+  const match = eventId.match(/^(imp_[^_]+)_/)
   return match ? match[1] : undefined
 }
 
