@@ -198,6 +198,7 @@ const sanitizeState = (raw: unknown): PersistedState => {
                 : classificationRaw === 'primary-task' ||
                     classificationRaw === 'other-ticket' ||
                     classificationRaw === 'custom-task' ||
+                    classificationRaw === 'ignored' ||
                     classificationRaw === 'unclassified'
                   ? classificationRaw
                   : 'unclassified'

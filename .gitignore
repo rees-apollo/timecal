@@ -4,3 +4,9 @@ out
 .DS_Store
 .eslintcache
 *.log*
+
+# Generated icon artifacts — reproduced from resources/icon.svg by `npm run build:icons`
+resources/icon.png
+build/icon.ico
+build/icon.icns
+build/icon.png

@@ -1,6 +1,7 @@
 import { app, shell, BrowserWindow, ipcMain, Tray, Menu } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import icon from '../../resources/icon.png?asset'
 import { StateStore } from './state-store'
 import { JiraClient } from './jira-client'
@@ -36,6 +37,53 @@ const outlookClient = new OutlookClient()
 const STATE_CHANGED_CHANNEL = 'state:changed'
 const DEFAULT_OFF_TASK_SUBJECT = 'Off-task block'
 const JIRA_ISSUE_KEY_REGEX = /^[A-Z][A-Z0-9]+-\d+$/
+
+const setupAutoUpdates = (): void => {
+  if (!app.isPackaged) {
+    return
+  }
+
+  autoUpdater.autoDownload = true
+  autoUpdater.autoInstallOnAppQuit = true
+
+  autoUpdater.on('checking-for-update', () => {
+    console.log('Auto-updater: checking for updates')
+  })
+
+  autoUpdater.on('update-available', (info) => {
+    console.log(`Auto-updater: update available (${info.version})`)
+  })
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('Auto-updater: no update available')
+  })
+
+  autoUpdater.on('error', (error) => {
+    console.error('Auto-updater error:', error)
+  })
+
+  autoUpdater.on('download-progress', (progress) => {
+    const pct = Math.round(progress.percent)
+    console.log(`Auto-updater: download ${pct}%`)
+  })
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log(`Auto-updater: update downloaded (${info.version}), will install on quit`)
+  })
+
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error('Auto-updater check failed:', error)
+  })
+
+  setInterval(
+    () => {
+      autoUpdater.checkForUpdates().catch((error) => {
+        console.error('Scheduled auto-updater check failed:', error)
+      })
+    },
+    60 * 60 * 1000
+  )
+}
 
 const sanitizePlannedMinutes = (value: number | null | undefined): number | undefined => {
   if (typeof value !== 'number' || !Number.isFinite(value)) return undefined
@@ -636,6 +684,8 @@ app.whenReady().then(() => {
   registerIpcHandlers()
 
   createWindow()
+
+  setupAutoUpdates()
 
   // Pull Outlook calendar on startup (incremental with history) and every 15 minutes thereafter.
   // Using incremental on startup preserves the existing cache: events already fetched in previous

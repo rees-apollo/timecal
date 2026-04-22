@@ -231,6 +231,7 @@
       if (endMs <= startMs) continue
       const link = classificationByEventId.get(event.id)
       const classification = link?.classification ?? 'unclassified'
+      if (classification === 'ignored') continue
       boundaries.add(startMs)
       boundaries.add(endMs)
       const assignedTaskLabel =
