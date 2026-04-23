@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.2](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.1...timecal-v1.2.2) (2026-04-23)
+
+
+### Bug Fixes
+
+* show booking code for custom tasks in overview ([5000bab](https://github.com/rees-apollo/timecal/commit/5000bab2fc92e34f68d55fbf7aa1e1f11c0bed4a))
+
 ## [1.2.1](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.0...timecal-v1.2.1) (2026-04-23)
 
 
