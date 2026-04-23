@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.2.1](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.0...timecal-v1.2.1) (2026-04-23)
+
+
+### Bug Fixes
+
+* add build config to package.json ([c4893ad](https://github.com/rees-apollo/timecal/commit/c4893ad737f79af8970b3fa0434e245b30033e06))
+
 ## [1.2.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.1.0...timecal-v1.2.0) (2026-04-23)
 
 
