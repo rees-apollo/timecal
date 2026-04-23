@@ -15,6 +15,7 @@ asarUnpack:
   - node_modules/winax/**
 win:
   executableName: timecal
+  icon: build/icon.ico
   signAndEditExecutable: false
   target:
     - nsis

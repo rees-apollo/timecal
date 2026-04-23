@@ -4,6 +4,7 @@
  * Generates all app icon formats from resources/icon.svg:
  *
  *   resources/icon.png          512 × 512  – runtime tray + Linux window icon
+ *   resources/icon.ico          multi-size – runtime Windows window/taskbar icon
  *   build/icon.ico              multi-size – Windows exe, NSIS installer (16/32/48/64/128/256)
  *   build/icon.icns             multi-size – macOS app bundle (all required sizes)
  *
@@ -90,6 +91,8 @@ async function main() {
   // Multi-resolution ICO for the Windows executable and NSIS installer.
   // Sizes: 16, 32, 48, 64, 128, 256 — covers all Windows shell contexts.
   const icoBuffer = await toIco([p[16], p[32], p[48], p[64], p[128], p[256]])
+  await writeFile(join(ROOT, 'resources', 'icon.ico'), icoBuffer)
+  console.log('  ✓  resources/icon.ico       (16/32/48/64/128/256 px)')
   await writeFile(join(ROOT, 'build', 'icon.ico'), icoBuffer)
   console.log('  ✓  build/icon.ico           (16/32/48/64/128/256 px)')
 

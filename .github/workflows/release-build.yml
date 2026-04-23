@@ -15,9 +15,9 @@ on:
 permissions: {}
 
 jobs:
-  publish-windows:
+  build-windows:
     permissions:
-      contents: write
+      contents: read
     name: Publish Windows Assets
     runs-on: windows-latest
     steps:
@@ -36,10 +36,36 @@ jobs:
         run: bun run rebuild:native
 
       - name: Build app
-        run: bun run build --publish never
+        run: bun run build
 
       - name: Build Windows installer artifacts (no publish)
         run: bun x electron-builder --win nsis --publish never
+
+      - name: Upload Windows installer artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-installers
+          path: |
+            dist/*.exe
+            dist/*.yml
+            dist/*.blockmap
+          if-no-files-found: error
+
+  publish-windows:
+    needs: build-windows
+    permissions:
+      contents: write
+    name: Publish Windows Assets
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download Windows installer artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: windows-installers
+          path: ./release_assets
 
       - name: Resolve tag and verify release exists
         env:
@@ -66,6 +92,7 @@ jobs:
           TAG_NAME: ${{ env.TAG_NAME }}
         run: |
           gh release upload "${{ env.TAG_NAME }}" \
-          ./dist/*.exe \
-          ./dist/*.yml \
-          ./dist/*.blockmap
+            ./release_assets/*.exe \
+            ./release_assets/*.yml \
+            ./release_assets/*.blockmap \
+            --clobber

@@ -1,7 +1,8 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import iconPng from '../../resources/icon.png?asset'
+import iconIco from '../../resources/icon.ico?asset'
 import { setupAutoUpdates } from './managers/update-manager'
 import { StateStore } from './managers/state-manager'
 import { EventManager } from './managers/event-manager'
@@ -57,13 +58,15 @@ const worklogManager = new WorklogManager({
 })
 
 function createWindow(): void {
+  const windowIcon = process.platform === 'win32' ? iconIco : iconPng
+
   // Create the browser window.
   mainWindow = new BrowserWindow({
     width: 900,
     height: 670,
     show: false,
     autoHideMenuBar: true,
-    icon,
+    icon: windowIcon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: false
@@ -154,7 +157,7 @@ app.whenReady().then(() => {
     "SETTING UP TRAY MANAGER WITH SNAPSHOT AND TASK MANAGER'S getRecentIssueDetails, startSession, stopActiveSession METHODS, AND APP QUIT/SHOW BEHAVIOURS"
   )
   trayManager = new TrayManager({
-    icon,
+    icon: iconPng,
     getSnapshot: () => getSnapshot(),
     getRecentIssueDetails: (issueKey) => taskManager.getRecentIssueDetails(issueKey),
     startSession: (input) => {
