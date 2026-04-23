@@ -100,6 +100,7 @@
       sessions,
       calendarEvents,
       calendarLinks,
+      customTaskCategories,
       activeSessionId,
       workingHours: effectiveScheduleForDay
     })

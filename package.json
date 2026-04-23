@@ -1,9 +1,9 @@
 {
   "name": "timecal",
   "version": "1.2.0",
-  "description": "An Electron application with Svelte and TypeScript",
+  "description": "A modern time tracking app for Windows built with Electron and Svelte.",
   "main": "./out/main/index.js",
-  "author": "example.com",
+  "author": "Rees@Apollo",
   "homepage": "https://github.com/rees-apollo/timecal",
   "repository": {
     "type": "git",

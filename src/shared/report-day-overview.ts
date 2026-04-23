@@ -1,6 +1,7 @@
 import type {
   CalendarEvent,
   CalendarEventLink,
+  CustomTaskCategory,
   TaskSession,
   WeekdayKey,
   WorkingHoursSchedule
@@ -60,6 +61,7 @@ export const buildDayTimeline = (input: {
   sessions: TaskSession[]
   calendarEvents: CalendarEvent[]
   calendarLinks: CalendarEventLink[]
+  customTaskCategories?: CustomTaskCategory[]
   activeSessionId?: string
   workingHours: WorkingHoursSchedule
 }): DayTimeline => {
@@ -97,6 +99,21 @@ export const buildDayTimeline = (input: {
   const windowStartMs = workStart.getTime()
   const windowEndMs = workEnd.getTime()
   const linksByEventId = new Map(input.calendarLinks.map((link) => [link.eventId, link]))
+  const bookingCodeByTaskKey = new Map<string, string>()
+
+  for (const session of input.sessions) {
+    const key = session.jiraIssueKey.trim()
+    const bookingCode = session.bookingCode?.trim()
+    if (!key || !bookingCode) continue
+    bookingCodeByTaskKey.set(key, bookingCode)
+  }
+
+  for (const category of input.customTaskCategories ?? []) {
+    const key = category.name.trim()
+    const bookingCode = category.bookingCode.trim()
+    if (!key || !bookingCode) continue
+    bookingCodeByTaskKey.set(key, bookingCode)
+  }
 
   type Span = {
     startMs: number
@@ -141,9 +158,17 @@ export const buildDayTimeline = (input: {
       classification === 'primary-task'
         ? 'Primary task'
         : classification === 'other-ticket'
-          ? link?.otherTicketKey?.trim() || 'Other ticket'
+          ? ((): string => {
+              const issueKey = link?.otherTicketKey?.trim()
+              if (!issueKey) return 'Other ticket'
+              return bookingCodeByTaskKey.get(issueKey) ?? issueKey
+            })()
           : classification === 'custom-task'
-            ? link?.customTaskCategory?.trim() || 'Custom task'
+            ? ((): string => {
+                const categoryName = link?.customTaskCategory?.trim()
+                if (!categoryName) return 'Custom task'
+                return bookingCodeByTaskKey.get(categoryName) ?? categoryName
+              })()
             : 'Unassigned'
 
     const subtitle =
@@ -218,12 +243,13 @@ export const buildDayTimeline = (input: {
       title = activeMeetings[0].title
       subtitle = activeMeetings[0].subtitle
       assignedTaskLabel =
-        activeMeetings[0].assignedTaskLabel ?? (activeTasks[0]?.title || 'Unassigned')
+        activeMeetings[0].assignedTaskLabel ??
+        (activeTasks[0]?.assignedTaskLabel || activeTasks[0]?.title || 'Unassigned')
     } else if (activeTasks.length > 0) {
       kind = 'active-task'
       title = activeTasks[0].title
       subtitle = activeTasks[0].subtitle
-      assignedTaskLabel = activeTasks[0].assignedTaskLabel ?? activeTasks[0].title
+      assignedTaskLabel = activeTasks[0].assignedTaskLabel ?? 'Unassigned'
     }
 
     const hasOverlap = activeTasks.length > 1 || activeMeetings.length > 1
