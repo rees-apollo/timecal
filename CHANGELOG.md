@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.3.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.2...timecal-v1.3.0) (2026-04-23)
+
+
+### Features
+
+* update icon ([1a4e98f](https://github.com/rees-apollo/timecal/commit/1a4e98f0c10ab1545e4b6b2fb0e5b61e64317b98))
+
+
+### Bug Fixes
+
+* build icons ([edaa252](https://github.com/rees-apollo/timecal/commit/edaa2522b8cd159d188db2bf0de8b93e1ce7faf4))
+
 ## [1.2.2](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.1...timecal-v1.2.2) (2026-04-23)
 
 
