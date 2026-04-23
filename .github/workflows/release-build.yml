@@ -1,16 +1,23 @@
 name: Build And Publish Release Assets
 
 on:
-  push:
-    tags:
-      - 'v*'
-  workflow_dispatch:
+  release:
+    types: [published]
 
-permissions:
-  contents: write
+  # checkov:skip=CKV_GHA_7 This input is required for manual triggering
+  workflow_dispatch:
+    inputs:
+      tag-name:
+        type: string
+        description: the name of the tag to make
+        required: true
+
+permissions: {}
 
 jobs:
   publish-windows:
+    permissions:
+      contents: write
     name: Publish Windows Assets
     runs-on: windows-latest
     steps:
@@ -31,7 +38,16 @@ jobs:
       - name: Build app
         run: bun run build
 
-      - name: Publish Windows installer to GitHub Release
+      - name: Build Windows installer artifacts (no publish)
+        run: bun x electron-builder --win nsis --publish never
+
+      - name: Upload Release Assets
+        shell: bash
         env:
-          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: bun x electron-builder --win nsis --publish always
+          GH_TOKEN: ${{ github.token }}
+          TAG_NAME: ${{ github.ref_name }}
+        run: |
+          gh release upload "${{ env.TAG_NAME }}" \
+          ./dist/*.exe \
+          ./dist/*.yml \
+          ./dist/*.blockmap
