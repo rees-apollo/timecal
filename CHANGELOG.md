@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.3.0...timecal-v1.4.0) (2026-04-24)
+
+
+### Features
+
+* add Python setup and setuptools installation to CI workflows ([7f68b1c](https://github.com/rees-apollo/timecal/commit/7f68b1c94575ed9b1a133922aeae3c2b3aefce78))
+
+
+### Bug Fixes
+
+* npx postinstall ([b0b1762](https://github.com/rees-apollo/timecal/commit/b0b1762f7f792716d8e51da32709683a5ef00e9f))
+
 ## [1.3.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.2.2...timecal-v1.3.0) (2026-04-23)
 
 
