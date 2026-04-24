@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.5.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.4.0...timecal-v1.5.0) (2026-04-24)
+
+
+### Features
+
+* add GitHub Actions workflow for security analysis with zizmor ([b7bb9b2](https://github.com/rees-apollo/timecal/commit/b7bb9b24b99f3a92d8acaedab0e5d7ecba771b39))
+
+
+### Bug Fixes
+
+* set build format ([06eef5c](https://github.com/rees-apollo/timecal/commit/06eef5c0ba6852f0500bfa5aa8982aab3cd4cb6d))
+* stop creation of mjs files ([5f71330](https://github.com/rees-apollo/timecal/commit/5f71330fca28039927a7fc129009a73c5073f19e))
+
 ## [1.4.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.3.0...timecal-v1.4.0) (2026-04-24)
 
 
