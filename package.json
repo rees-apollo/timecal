@@ -56,7 +56,7 @@
     "@types/node": "^22.19.17",
     "bits-ui": "^2.18.0",
     "clsx": "^2.1.1",
-    "electron": "^35.7.5",
+    "electron": "^41.3.0",
     "electron-builder": "^25.1.8",
     "electron-vite": "^5.0.0",
     "eslint": "^9.39.4",
