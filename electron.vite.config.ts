@@ -11,6 +11,7 @@ export default defineConfig({
           'outlook-worker': path.resolve('./src/main/managers/api-clients/outlook-worker.ts')
         },
         output: {
+          format: 'es',
           entryFileNames: '[name].js'
         }
       }
