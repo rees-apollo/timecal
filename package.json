@@ -1,7 +1,7 @@
 {
   "name": "timecal",
   "type": "module",
-  "version": "1.4.0",
+  "version": "1.5.0",
   "description": "A modern time tracking app for Windows built with Electron and Svelte.",
   "main": "./out/main/index.js",
   "author": "Rees@Apollo",
