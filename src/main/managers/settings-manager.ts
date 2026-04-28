@@ -80,13 +80,18 @@ export class SettingsManager {
 
   async searchIssues(input: SearchIssuesInput): Promise<JiraIssue[]> {
     const settings = this.getRequiredJiraSettings()
-    return jiraClient.searchIssues({
-      baseUrl: settings.jiraBaseUrl,
-      email: settings.jiraEmail,
-      apiToken: settings.jiraApiToken,
-      bookingCodeField: settings.jiraBookingCodeField,
-      query: input.query,
-      maxResults: input.maxResults ?? 20
-    })
+    try {
+      return await jiraClient.searchIssues({
+        baseUrl: settings.jiraBaseUrl,
+        email: settings.jiraEmail,
+        apiToken: settings.jiraApiToken,
+        bookingCodeField: settings.jiraBookingCodeField,
+        query: input.query,
+        maxResults: input.maxResults ?? 20
+      })
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error)
+      throw new Error(`Jira issue search failed: ${message}`)
+    }
   }
 }

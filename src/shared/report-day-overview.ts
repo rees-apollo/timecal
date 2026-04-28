@@ -56,6 +56,11 @@ const parseLocalDateTime = (date: Date, hhmm: string): Date | null => {
 const formatRangeTime = (date: Date): string =>
   date.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' })
 
+const getImportedSeriesKey = (eventId: string): string | undefined => {
+  const match = eventId.match(/^(imp_[^_]+)_/)
+  return match ? match[1] : undefined
+}
+
 export const buildDayTimeline = (input: {
   dayKey: string
   sessions: TaskSession[]
@@ -141,7 +146,8 @@ export const buildDayTimeline = (input: {
       endMs,
       title: isActive ? `${session.jiraIssueKey} (active)` : session.jiraIssueKey,
       subtitle: session.jiraIssueSummary,
-      assignedTaskLabel: session.bookingCode?.trim() || undefined
+      assignedTaskLabel:
+        session.bookingCode?.trim() || bookingCodeByTaskKey.get(session.jiraIssueKey.trim())
     })
   }
 
@@ -150,7 +156,9 @@ export const buildDayTimeline = (input: {
     const endMs = Math.min(windowEndMs, new Date(event.endIso).getTime())
     if (endMs <= startMs) continue
 
-    const link = linksByEventId.get(event.id)
+    const seriesKey = getImportedSeriesKey(event.id)
+    const link =
+      linksByEventId.get(event.id) ?? (seriesKey ? linksByEventId.get(seriesKey) : undefined)
     const classification = link?.classification ?? 'unclassified'
     if (classification === 'ignored') continue
 

@@ -1,6 +1,5 @@
 import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
-import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import iconPng from '../../resources/icon.png?asset'
 import iconIco from '../../resources/icon.ico?asset'
 import { setupAutoUpdates } from './managers/update-manager'
@@ -14,6 +13,40 @@ import type { AppSnapshot } from '../shared/types'
 
 let mainWindow: BrowserWindow | null = null
 let isQuitting = false
+const isDev = !app.isPackaged
+
+function setAppUserModelId(id: string): void {
+  if (process.platform === 'win32') {
+    app.setAppUserModelId(isDev ? process.execPath : id)
+  }
+}
+
+function watchWindowShortcuts(window: BrowserWindow): void {
+  const { webContents } = window
+
+  webContents.on('before-input-event', (event, input) => {
+    if (input.type !== 'keyDown') return
+
+    if (!isDev) {
+      if (input.code === 'KeyR' && (input.control || input.meta)) event.preventDefault()
+      if (input.code === 'KeyI' && ((input.alt && input.meta) || (input.control && input.shift))) {
+        event.preventDefault()
+      }
+      return
+    }
+
+    if (input.code === 'F12') {
+      if (webContents.isDevToolsOpened()) webContents.closeDevTools()
+      else webContents.openDevTools({ mode: 'undocked' })
+    }
+  })
+}
+
+const hasSingleInstanceLock = app.requestSingleInstanceLock()
+
+if (!hasSingleInstanceLock) {
+  app.quit()
+}
 
 const stateStore = new StateStore()
 let trayManager: TrayManager | null = null
@@ -91,7 +124,7 @@ function createWindow(): void {
 
   // HMR for renderer base on electron-vite cli.
   // Load the remote URL for development or the local html file for production.
-  if (is.dev && process.env['ELECTRON_RENDERER_URL']) {
+  if (isDev && process.env['ELECTRON_RENDERER_URL']) {
     console.log('Loading renderer from URL:', process.env['ELECTRON_RENDERER_URL'])
     mainWindow.loadURL(process.env['ELECTRON_RENDERER_URL'])
   } else {
@@ -117,13 +150,13 @@ app.whenReady().then(() => {
   stateStore.load()
 
   // Set app user model id for windows
-  electronApp.setAppUserModelId('com.timecal.app')
+  setAppUserModelId('com.timecal.app')
 
   // Default open or close DevTools by F12 in development
   // and ignore CommandOrControl + R in production.
-  // see https://github.com/alex8088/electron-toolkit/tree/master/packages/utils
+  // Keep these shortcuts behavior without depending on @electron-toolkit/utils.
   app.on('browser-window-created', (_, window) => {
-    optimizer.watchWindowShortcuts(window)
+    watchWindowShortcuts(window)
   })
 
   ipcMain.handle('app:getSnapshot', async () => getSnapshot())
@@ -190,6 +223,13 @@ app.whenReady().then(() => {
     // dock icon is clicked and there are no other windows open.
     if (BrowserWindow.getAllWindows().length === 0) createWindow()
   })
+})
+
+app.on('second-instance', () => {
+  if (!mainWindow) return
+  if (mainWindow.isMinimized()) mainWindow.restore()
+  mainWindow.show()
+  mainWindow.focus()
 })
 
 // Quit when all windows are closed, except on macOS. There, it's common

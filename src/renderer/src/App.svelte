@@ -142,7 +142,8 @@
       if (jiraResults.length > 0 && !taskSelection.selectedIssueKey) {
         taskSelection.selectedIssueKey = jiraResults[0].key
       }
-    }, `Loaded ${jiraResults.length} Jira issues.`)
+      toast.success(`Loaded ${jiraResults.length} Jira issues.`)
+    })
   }
 
   const startOrSwitchTask = async (): Promise<void> => {
