@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.6.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.5.0...timecal-v1.6.0) (2026-04-28)
+
+
+### Features
+
+* split out week time override ([48a4a36](https://github.com/rees-apollo/timecal/commit/48a4a36e0708d6f4e4b59e621fde058a9e11ea3e))
+
+
+### Bug Fixes
+
+* rebuild broken lockfile ([860b9c1](https://github.com/rees-apollo/timecal/commit/860b9c126c8b58e7e04e488986d2379711720c8b))
+
 ## [1.5.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.4.0...timecal-v1.5.0) (2026-04-24)
 
 
