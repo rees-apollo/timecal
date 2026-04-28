@@ -1,22 +1,15 @@
 <script lang="ts">
-  import type {
-    AppSnapshot,
-    BuildWorklogDraftInput,
-    TaskSession,
-    WorkingHoursSchedule
-  } from '../../../shared/types'
+  import type { AppSnapshot, BuildWorklogDraftInput, TaskSession } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import * as Tabs from '$lib/components/ui/tabs'
   import { Button } from '$lib/components/ui/button'
   import type { DateValue } from '@internationalized/date'
   import { buildDayTimeline, type IntervalKind } from '../../../shared/report-day-overview'
   import { formatDurationMs, formatMinutesAsHoursAndMinutes } from '../../../shared/duration-format'
-  import { DEFAULT_SETTINGS } from '../../../shared/defaults'
   import type { TimesheetRow } from '../../../shared/report-timesheet'
   import { getWeekRangeLabel } from '../../../shared/report-week'
   import { buildTimesheetRows } from '../../../shared/report-timesheet'
   import { calculateSessionWorklogMinutesForRange } from '../../../shared/report-worklog'
-  import ReportWeekOverridePanel from './reports/ReportWeekOverridePanel.svelte'
   import ReportWorklogsTab from './reports/ReportWorklogsTab.svelte'
   import ReportTimesheetTab from './reports/ReportTimesheetTab.svelte'
   import ReportDailyOverviewTab from './reports/ReportDailyOverviewTab.svelte'
@@ -27,8 +20,7 @@
   } from '$lib/helpers/report-dialog/date-utils'
   import {
     getSelectedWeekEndExclusive,
-    getSelectedWeekStart,
-    REPORT_WEEKDAYS
+    getSelectedWeekStart
   } from '$lib/helpers/report-dialog/week-utils'
   import {
     getWeekStartKey,
@@ -40,14 +32,12 @@
     open = $bindable(false),
     snapshot = null,
     isBusy = false,
-    openDraftDialog,
-    saveWeeklyWorkingHours
+    openDraftDialog
   }: {
     open?: boolean
     snapshot?: AppSnapshot | null
     isBusy?: boolean
     openDraftDialog: (input?: string | BuildWorklogDraftInput) => Promise<void>
-    saveWeeklyWorkingHours: (weekStartKey: string, schedule?: WorkingHoursSchedule) => Promise<void>
   } = $props()
 
   const sessions = $derived(snapshot?.state.sessions ?? [])
@@ -126,18 +116,6 @@
       weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours
     )
   )
-  // eslint-disable-next-line svelte/prefer-writable-derived -- weekOverrideDraft is bound to a child component via bind: and must remain $state
-  let weekOverrideDraft: WorkingHoursSchedule = $state(
-    sanitizeWorkingHoursSchedule(DEFAULT_SETTINGS.workingHours)
-  )
-
-  $effect(() => {
-    weekOverrideDraft = sanitizeWorkingHoursSchedule(
-      weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours
-    )
-  })
-
-  const weekdays = REPORT_WEEKDAYS
 
   const formatSessionDurationForReports = (session: TaskSession): string => {
     const minutes = calculateSessionWorklogMinutesForRange({
@@ -213,17 +191,6 @@
                 Next
               </Button>
             </div>
-            <ReportWeekOverridePanel
-              {isBusy}
-              {weekdays}
-              bind:weekOverrideDraft
-              resetWeekToDefault={() => saveWeeklyWorkingHours(selectedWeekKey)}
-              saveWeekSchedule={() =>
-                saveWeeklyWorkingHours(
-                  selectedWeekKey,
-                  sanitizeWorkingHoursSchedule(weekOverrideDraft)
-                )}
-            />
           </div>
         {/if}
       </Dialog.Header>

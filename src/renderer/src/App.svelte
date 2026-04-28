@@ -15,6 +15,7 @@
   import MainCalendarView from './components/MainCalendarView.svelte'
   import AppDock from './components/AppDock.svelte'
   import ReportDialog from './components/ReportDialog.svelte'
+  import WeeklyWorkingHoursDialog from './components/WeeklyWorkingHoursDialog.svelte'
   import SettingsPanel from './components/SettingsPanel.svelte'
   import WorklogDraftDialog from './components/WorklogDraftDialog.svelte'
   import TaskTransitionsDialog from './components/TaskTransitionsDialog.svelte'
@@ -44,6 +45,7 @@
 
   let settingsDialogOpen = $state(false)
   let reportDialogOpen = $state(false)
+  let weeklyWorkingHoursDialogOpen = $state(false)
   let transitionsDialogOpen = $state(false)
   let calendarWeekStartKey = $state(getWeekStartKey(new Date()))
   const isDarkMode = $derived(mode.current === 'dark')
@@ -411,6 +413,7 @@
     onSelectCustomTask={handleSelectCustomTask}
     onOpenTransitions={() => (transitionsDialogOpen = true)}
     onOpenReports={() => (reportDialogOpen = true)}
+    onOpenWeeklyOverrides={() => (weeklyWorkingHoursDialogOpen = true)}
   />
 </div>
 
@@ -427,11 +430,12 @@
 </Dialog.Root>
 
 <!-- Report dialog -->
-<ReportDialog
-  bind:open={reportDialogOpen}
+<ReportDialog bind:open={reportDialogOpen} {snapshot} {isBusy} {openDraftDialog} />
+
+<WeeklyWorkingHoursDialog
+  bind:open={weeklyWorkingHoursDialogOpen}
   {snapshot}
   {isBusy}
-  {openDraftDialog}
   {saveWeeklyWorkingHours}
 />
 

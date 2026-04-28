@@ -6,6 +6,7 @@
   import BarChartIcon from '@lucide/svelte/icons/bar-chart-2'
   import RefreshCwIcon from '@lucide/svelte/icons/refresh-cw'
   import HistoryIcon from '@lucide/svelte/icons/history'
+  import Clock3Icon from '@lucide/svelte/icons/clock-3'
   import SunIcon from '@lucide/svelte/icons/sun'
   import MoonIcon from '@lucide/svelte/icons/moon'
 
@@ -49,7 +50,8 @@
     onSelectIssue,
     onSelectCustomTask,
     onOpenTransitions,
-    onOpenReports
+    onOpenReports,
+    onOpenWeeklyOverrides
   }: {
     isBusy: boolean
     isDarkMode: boolean
@@ -66,6 +68,7 @@
     onSelectCustomTask: (categoryName: string) => Promise<void>
     onOpenTransitions: () => void
     onOpenReports: () => void
+    onOpenWeeklyOverrides: () => void
   } = $props()
 </script>
 
@@ -123,6 +126,11 @@
     <Button variant="ghost" size="icon" class="rounded-full" onclick={onOpenReports}>
       <BarChartIcon class="size-4" />
       <span class="sr-only">Reports</span>
+    </Button>
+
+    <Button variant="ghost" size="icon" class="rounded-full" onclick={onOpenWeeklyOverrides}>
+      <Clock3Icon class="size-4" />
+      <span class="sr-only">Weekly hours overrides</span>
     </Button>
   </div>
 </div>
