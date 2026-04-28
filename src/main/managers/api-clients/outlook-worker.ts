@@ -195,8 +195,7 @@ const workerFilePath = fileURLToPath(import.meta.url)
 const mainArg = process.argv[1]
 const isDirectInvocation =
   mainArg !== undefined &&
-  (mainArg === workerFilePath ||
-    mainArg.replace(/\\/g, '/') === workerFilePath.replace(/\\/g, '/'))
+  (mainArg === workerFilePath || mainArg.replace(/\\/g, '/') === workerFilePath.replace(/\\/g, '/'))
 if (isDirectInvocation && process.argv[2] !== undefined) {
   run()
 }

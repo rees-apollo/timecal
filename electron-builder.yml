@@ -25,7 +25,7 @@ nsis:
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
 toolsets:
-  winCodeSign: "1.1.0"
+  winCodeSign: '1.1.0'
 npmRebuild: false
 publish:
   provider: github

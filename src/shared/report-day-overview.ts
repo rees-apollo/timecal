@@ -157,7 +157,8 @@ export const buildDayTimeline = (input: {
     if (endMs <= startMs) continue
 
     const seriesKey = getImportedSeriesKey(event.id)
-    const link = linksByEventId.get(event.id) ?? (seriesKey ? linksByEventId.get(seriesKey) : undefined)
+    const link =
+      linksByEventId.get(event.id) ?? (seriesKey ? linksByEventId.get(seriesKey) : undefined)
     const classification = link?.classification ?? 'unclassified'
     if (classification === 'ignored') continue
 
