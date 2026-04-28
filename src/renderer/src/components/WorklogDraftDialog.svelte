@@ -5,6 +5,14 @@
   import { Label } from '$lib/components/ui/label'
   import { Textarea } from '$lib/components/ui/textarea'
 
+  const WORKLOG_UPDATE_TEMPLATE = [
+    'Update summary:',
+    '- Completed:',
+    '- In progress:',
+    '- Blockers:',
+    '- Next steps:'
+  ].join('\n')
+
   let {
     draftDialogOpen = $bindable(false),
     draftComment = $bindable(''),
@@ -39,8 +47,25 @@
         </div>
 
         <div>
-          <Label for="worklogComment">Worklog Comment</Label>
+          <div class="mb-1 flex items-center justify-between gap-2">
+            <Label for="worklogComment">Worklog Comment</Label>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              onclick={() => {
+                draftComment = draftComment.trim()
+                  ? `${draftComment}\n\n${WORKLOG_UPDATE_TEMPLATE}`
+                  : WORKLOG_UPDATE_TEMPLATE
+              }}
+            >
+              Insert Update Template
+            </Button>
+          </div>
           <Textarea id="worklogComment" rows={4} bind:value={draftComment} />
+          <p class="mt-1 text-xs text-muted-foreground">
+            Reminder: include outcomes, blockers, and next steps so ticket updates stay clear.
+          </p>
         </div>
       </div>
     {/if}

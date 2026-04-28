@@ -266,33 +266,41 @@
       return new Date(value.epochMilliseconds).toISOString()
     }
 
-    const timeSuffix = endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'
-    return new Date(`${value.toString()}${timeSuffix}`).toISOString()
+    const plainDateTime = value.toPlainDateTime(
+      endOfDay
+        ? { hour: 23, minute: 59, second: 59, millisecond: 999 }
+        : { hour: 0, minute: 0, second: 0, millisecond: 0 }
+    )
+    return plainDateTime.toZonedDateTime(calendarTimezone).toInstant().toString()
   }
 
   const planningWindowFromDateTime = (
     dateTime: Temporal.ZonedDateTime
   ): { startIso: string; endIso: string } => {
-    const day = dateTime.toPlainDate().toString()
-    const start = new Date(`${day}T00:00:00.000Z`)
-    const end = new Date(`${day}T23:59:59.999Z`)
-    return { startIso: start.toISOString(), endIso: end.toISOString() }
+    const day = dateTime.toPlainDate()
+    return {
+      startIso: temporalToIso(day),
+      endIso: temporalToIso(day, true)
+    }
   }
 
   const planningWindowFromDate = (
     date: Temporal.PlainDate
   ): { startIso: string; endIso: string } => {
-    const start = new Date(`${date.toString()}T00:00:00.000Z`)
-    const end = new Date(`${date.toString()}T23:59:59.999Z`)
-    return { startIso: start.toISOString(), endIso: end.toISOString() }
+    return {
+      startIso: temporalToIso(date),
+      endIso: temporalToIso(date, true)
+    }
   }
 
   const toTemporalDateForPlanning = (
     startIso: string,
     endIso: string
   ): { start: Temporal.PlainDate; end: Temporal.PlainDate } => {
-    const startDate = Temporal.PlainDate.from(new Date(startIso).toISOString().slice(0, 10))
-    const endDate = Temporal.PlainDate.from(new Date(endIso).toISOString().slice(0, 10))
+    const startDate = Temporal.Instant.from(startIso)
+      .toZonedDateTimeISO(calendarTimezone)
+      .toPlainDate()
+    const endDate = Temporal.Instant.from(endIso).toZonedDateTimeISO(calendarTimezone).toPlainDate()
     return { start: startDate, end: endDate }
   }
 

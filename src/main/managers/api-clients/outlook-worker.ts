@@ -3,7 +3,7 @@ import { createRequire } from 'node:module'
 import { fileURLToPath } from 'node:url'
 import type { CalendarEvent } from '../../../shared/types'
 
-const require = createRequire(import.meta.url)
+const nodeRequire = createRequire(import.meta.url)
 
 type PullInput = {
   startIso: string
@@ -64,6 +64,14 @@ const toDate = (value: unknown, field: string): Date => {
 const toStringValue = (value: unknown, fallback: string): string =>
   typeof value === 'string' && value.trim().length > 0 ? value : fallback
 
+const isCancelledMeeting = (item: { Subject: unknown; MeetingStatus?: unknown }): boolean => {
+  const status = typeof item.MeetingStatus === 'number' ? item.MeetingStatus : null
+  if (status === 5) return true
+
+  const subject = typeof item.Subject === 'string' ? item.Subject.trim() : ''
+  return /^cancel(?:ed|led)\s*:/i.test(subject)
+}
+
 const toSafeImportedEventId = (legacyId: string, startIso: string): string => {
   const hash = createHash('sha1').update(String(legacyId)).digest('hex').slice(0, 16)
   const startMs = Date.parse(startIso)
@@ -105,7 +113,7 @@ const run = (): void => {
     })
     console.log('[Outlook worker] Using filter', filter)
 
-    const winax = require('winax') as {
+    const winax = nodeRequire('winax') as {
       Object: new (progId: string) => {
         GetNamespace: (name: string) => {
           GetDefaultFolder: (id: number) => {
@@ -124,6 +132,9 @@ const run = (): void => {
       Subject: unknown
       Start: unknown
       End: unknown
+      StartUTC?: unknown
+      EndUTC?: unknown
+      MeetingStatus?: unknown
     }
 
     const outlook = new winax.Object('Outlook.Application')
@@ -144,8 +155,15 @@ const run = (): void => {
         console.log('[Outlook worker] Progress', { scanned, accepted: events.length })
       }
       try {
-        const startDate = toDate(item.Start, 'Start')
-        const endDate = toDate(item.End, 'End')
+        if (isCancelledMeeting(item)) {
+          item = items.FindNext()
+          continue
+        }
+
+        // Prefer explicit UTC timestamps from Outlook when available to avoid
+        // any ambiguous local-time coercion through COM interop.
+        const startDate = toDate(item.StartUTC ?? item.Start, 'Start')
+        const endDate = toDate(item.EndUTC ?? item.End, 'End')
         const startIso = startDate.toISOString()
         const endIso = endDate.toISOString()
         const baseId = toStringValue(item.EntryID, startIso)
@@ -173,11 +191,12 @@ const run = (): void => {
 // Only execute when this file is invoked directly as a child process with a payload
 // argument. This prevents the worker from running when electron-vite launches it as
 // part of the main process bundle during dev or build.
-const __filename = fileURLToPath(import.meta.url)
+const workerFilePath = fileURLToPath(import.meta.url)
 const mainArg = process.argv[1]
 const isDirectInvocation =
   mainArg !== undefined &&
-  (mainArg === __filename || mainArg.replace(/\\/g, '/') === __filename.replace(/\\/g, '/'))
+  (mainArg === workerFilePath ||
+    mainArg.replace(/\\/g, '/') === workerFilePath.replace(/\\/g, '/'))
 if (isDirectInvocation && process.argv[2] !== undefined) {
   run()
 }
