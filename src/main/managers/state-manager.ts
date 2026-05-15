@@ -3,7 +3,7 @@ import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, writeFileSync } from 'fs'
 import { join } from 'path'
 import { autoCustomTaskCategoryColor } from '../../shared/off-task-colors'
-import { sanitizeWorkingHoursSchedule } from '../../shared/working-hours'
+import { WorkingSchedule } from '../../shared/working-schedule'
 import { inferTaskType } from '../../shared/task-type'
 import { DEFAULT_SETTINGS } from '../../shared/defaults'
 import type {
@@ -120,7 +120,7 @@ const sanitizeState = (raw: unknown): PersistedState => {
     settings: {
       ...fallback.settings,
       ...(candidate.settings ?? {}),
-      workingHours: sanitizeWorkingHoursSchedule(candidate.settings?.workingHours),
+      workingHours: WorkingSchedule.sanitize(candidate.settings?.workingHours),
       customTaskCategories: Array.isArray(candidate.settings?.customTaskCategories)
         ? candidate.settings.customTaskCategories.map((cat, index) => {
             if (typeof cat === 'string') {
@@ -158,7 +158,7 @@ const sanitizeState = (raw: unknown): PersistedState => {
       ? Object.fromEntries(
           Object.entries(candidate.weeklyWorkingHoursOverrides).map(([weekStartKey, schedule]) => [
             weekStartKey,
-            sanitizeWorkingHoursSchedule(schedule)
+            WorkingSchedule.sanitize(schedule)
           ])
         )
       : {},

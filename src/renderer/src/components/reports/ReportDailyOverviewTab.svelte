@@ -1,6 +1,9 @@
 <script lang="ts">
   import type { DateValue } from '@internationalized/date'
-  import type { DayTimeline, IntervalKind } from '../../../../shared/report-day-overview'
+  import type {
+    DayOverviewResult as DayTimeline,
+    SegmentKind as IntervalKind
+  } from '../../../../shared/types'
   import * as Popover from '$lib/components/ui/popover'
   import * as Calendar from '$lib/components/ui/calendar'
   import * as Table from '$lib/components/ui/table'

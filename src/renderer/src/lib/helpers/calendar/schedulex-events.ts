@@ -1,9 +1,6 @@
 import { Temporal } from 'temporal-polyfill'
 import type { CalendarEvent, TaskSession, WorkingHoursSchedule } from '../../../../../shared/types'
-import {
-  getWorkingTimeSegments,
-  sanitizeWorkingHoursSchedule
-} from '../../../../../shared/working-hours'
+import { WorkingSchedule } from '../../../../../shared/working-schedule'
 import { autoCustomTaskCategoryColor } from '../../../../../shared/off-task-colors'
 import {
   isDayScopedOffTaskEvent,
@@ -181,13 +178,13 @@ export const buildScheduleXBackgroundEvents = (input: {
     style: Record<string, string>
   }> = []
 
-  const safeSchedule = sanitizeWorkingHoursSchedule(workingHours)
+  const safeSchedule = WorkingSchedule.sanitize(workingHours)
   const now = new Date()
 
   for (const session of sessions) {
     const start = new Date(session.startIso)
     const end = new Date(session.endIso ?? now.toISOString())
-    const segments = getWorkingTimeSegments(start, end, safeSchedule)
+    const segments = new WorkingSchedule(safeSchedule).getWorkingTimeSegments(start, end)
     const ticketKey = session.jiraIssueKey.trim()
     const taskName = session.jiraIssueSummary.trim()
     const shadedLabel =

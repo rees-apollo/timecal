@@ -11,7 +11,7 @@
     getSelectedWeekStart,
     REPORT_WEEKDAYS
   } from '$lib/helpers/report-dialog/week-utils'
-  import { sanitizeWorkingHoursSchedule, toLocalDateKey } from '../../../shared/working-hours'
+  import { WorkingSchedule } from '../../../shared/working-schedule'
 
   let {
     open = $bindable(false),
@@ -26,7 +26,7 @@
   } = $props()
 
   const defaultWorkingHours = $derived(
-    sanitizeWorkingHoursSchedule(snapshot?.state.settings.workingHours)
+    WorkingSchedule.sanitize(snapshot?.state.settings.workingHours)
   )
   const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
 
@@ -35,7 +35,7 @@
 
   const selectedWeekStart = $derived(getSelectedWeekStart(weekOffset))
   const selectedWeekEnd = $derived(getSelectedWeekEndExclusive(selectedWeekStart))
-  const selectedWeekKey = $derived(toLocalDateKey(selectedWeekStart))
+  const selectedWeekKey = $derived(WorkingSchedule.toLocalDateKey(selectedWeekStart))
   const selectedWeekLabel = $derived(getWeekRangeLabel(selectedWeekStart, selectedWeekEnd))
 
   const updateWeekOverrideLunchDuration = (
@@ -57,11 +57,11 @@
 
   // eslint-disable-next-line svelte/prefer-writable-derived -- draft is two-way bound to input fields
   let weekOverrideDraft: WorkingHoursSchedule = $state(
-    sanitizeWorkingHoursSchedule(DEFAULT_SETTINGS.workingHours)
+    WorkingSchedule.sanitize(DEFAULT_SETTINGS.workingHours)
   )
 
   $effect(() => {
-    weekOverrideDraft = sanitizeWorkingHoursSchedule(
+    weekOverrideDraft = WorkingSchedule.sanitize(
       weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours
     )
   })
@@ -149,7 +149,7 @@
             onclick={() =>
               saveWeeklyWorkingHours(
                 selectedWeekKey,
-                sanitizeWorkingHoursSchedule(weekOverrideDraft)
+                WorkingSchedule.sanitize(weekOverrideDraft)
               )}
           >
             Save

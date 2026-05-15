@@ -6,12 +6,7 @@
   import { createResizePlugin } from '@schedule-x/resize'
   import { createEventsServicePlugin } from '@schedule-x/events-service'
   import { Temporal } from 'temporal-polyfill'
-  import {
-    getWeekStartKey,
-    getCalendarDayBoundaries,
-    getWorkingTimeSegments,
-    sanitizeWorkingHoursSchedule
-  } from '../../../shared/working-hours'
+  import { WorkingSchedule } from '../../../shared/working-schedule'
   import { autoCustomTaskCategoryColor } from '../../../shared/off-task-colors'
   import '@schedule-x/theme-shadcn/dist/index.css'
   import { mode } from 'mode-watcher'
@@ -362,7 +357,9 @@
               .toPlainDate()
               .toString()
             preservedDate = rangeDate
-            onDisplayedWeekStartChange(getWeekStartKey(new Date(range.start.epochMilliseconds)))
+            onDisplayedWeekStartChange(
+              WorkingSchedule.getWeekStartKey(new Date(range.start.epochMilliseconds))
+            )
           },
           onBeforeEventUpdate: (oldEvent: ScheduleXEventLike): boolean => {
             return (
@@ -524,13 +521,13 @@
       style: Record<string, string>
     }> = []
 
-    const safeSchedule = sanitizeWorkingHoursSchedule(workingHours)
+    const safeSchedule = WorkingSchedule.sanitize(workingHours)
     const now = new Date()
 
     for (const session of sessions) {
       const start = new Date(session.startIso)
       const end = new Date(session.endIso ?? now.toISOString())
-      const segments = getWorkingTimeSegments(start, end, safeSchedule)
+      const segments = new WorkingSchedule(safeSchedule).getWorkingTimeSegments(start, end)
       const ticketKey = session.jiraIssueKey.trim()
       const taskName = session.jiraIssueSummary.trim()
       const shadedLabel =
@@ -584,8 +581,10 @@
   let cache = $state('')
 
   $effect(() => {
-    const safeSchedule = sanitizeWorkingHoursSchedule(workingHours)
-    const dayBoundaries = normalizeDayBoundaries(getCalendarDayBoundaries(safeSchedule))
+    const safeSchedule = WorkingSchedule.sanitize(workingHours)
+    const dayBoundaries = normalizeDayBoundaries(
+      new WorkingSchedule(safeSchedule).getCalendarDayBoundaries()
+    )
     const newCache = JSON.stringify({
       x: dayBoundaries,
       scheduleXCalendars,

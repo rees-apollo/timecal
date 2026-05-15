@@ -20,8 +20,7 @@
     toTransitionRows,
     type TransitionDraftRow
   } from '$lib/helpers/task-transitions'
-  import { sanitizeWorkingHoursSchedule } from '../../../shared/working-hours'
-  import { calculateWorkingSecondsWithWeeklyOverrides } from '../../../shared/working-time-overrides'
+  import { WorkingSchedule } from '../../../shared/working-schedule'
 
   let {
     open = $bindable(false),
@@ -43,7 +42,7 @@
     onSave: (transitions: TaskTransitionInput[]) => Promise<void>
   } = $props()
 
-  const defaultWorkingHours = $derived(sanitizeWorkingHoursSchedule(workingHours))
+  const defaultWorkingHours = $derived(WorkingSchedule.sanitize(workingHours))
 
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
@@ -82,12 +81,10 @@
 
   const rowDurations = $derived(
     buildRowDurationLabels(rows, (start, end) =>
-      calculateWorkingSecondsWithWeeklyOverrides({
+      new WorkingSchedule(defaultWorkingHours, weeklyWorkingHoursOverrides).calculateWorkingSeconds(
         start,
-        end,
-        defaultWorkingHours,
-        weeklyWorkingHoursOverrides
-      })
+        end
+      )
     )
   )
 

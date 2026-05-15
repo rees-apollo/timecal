@@ -11,7 +11,7 @@
   } from '../../shared/types'
   import { DEFAULT_SETTINGS } from '../../shared/defaults'
   import { inferTaskType } from '../../shared/task-type'
-  import { getWeekStartKey, sanitizeWorkingHoursSchedule } from '../../shared/working-hours'
+  import { WorkingSchedule } from '../../shared/working-schedule'
   import MainCalendarView from './components/MainCalendarView.svelte'
   import AppDock from './components/AppDock.svelte'
   import ReportDialog from './components/ReportDialog.svelte'
@@ -47,11 +47,11 @@
   let reportDialogOpen = $state(false)
   let weeklyWorkingHoursDialogOpen = $state(false)
   let transitionsDialogOpen = $state(false)
-  let calendarWeekStartKey = $state(getWeekStartKey(new Date()))
+  let calendarWeekStartKey = $state(WorkingSchedule.getWeekStartKey(new Date()))
   const isDarkMode = $derived(mode.current === 'dark')
   const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
   const effectiveCalendarWorkingHours = $derived(
-    sanitizeWorkingHoursSchedule(
+    WorkingSchedule.sanitize(
       weeklyWorkingHoursOverrides[calendarWeekStartKey] ?? settings.workingHours
     )
   )

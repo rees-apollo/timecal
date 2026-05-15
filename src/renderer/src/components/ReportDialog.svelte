@@ -4,12 +4,14 @@
   import * as Tabs from '$lib/components/ui/tabs'
   import { Button } from '$lib/components/ui/button'
   import type { DateValue } from '@internationalized/date'
-  import { buildDayTimeline, type IntervalKind } from '../../../shared/report-day-overview'
+  import {
+    buildDayTimeline,
+    buildTimesheetRows,
+    calculateSessionWorklogMinutesForRange
+  } from '../../../shared/day-timeline'
+  import type { SegmentKind as IntervalKind, TimesheetRow } from '../../../shared/types'
   import { formatDurationMs, formatMinutesAsHoursAndMinutes } from '../../../shared/duration-format'
-  import type { TimesheetRow } from '../../../shared/report-timesheet'
   import { getWeekRangeLabel } from '../../../shared/report-week'
-  import { buildTimesheetRows } from '../../../shared/report-timesheet'
-  import { calculateSessionWorklogMinutesForRange } from '../../../shared/report-worklog'
   import ReportWorklogsTab from './reports/ReportWorklogsTab.svelte'
   import ReportTimesheetTab from './reports/ReportTimesheetTab.svelte'
   import ReportDailyOverviewTab from './reports/ReportDailyOverviewTab.svelte'
@@ -22,11 +24,7 @@
     getSelectedWeekEndExclusive,
     getSelectedWeekStart
   } from '$lib/helpers/report-dialog/week-utils'
-  import {
-    getWeekStartKey,
-    sanitizeWorkingHoursSchedule,
-    toLocalDateKey
-  } from '../../../shared/working-hours'
+  import { WorkingSchedule } from '../../../shared/working-schedule'
 
   let {
     open = $bindable(false),
@@ -45,7 +43,7 @@
     sessions.filter((session) => (session.taskType ?? 'jira') === 'jira')
   )
   const defaultWorkingHours = $derived(
-    sanitizeWorkingHoursSchedule(snapshot?.state.settings.workingHours)
+    WorkingSchedule.sanitize(snapshot?.state.settings.workingHours)
   )
   const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
   const calendarEvents = $derived(snapshot?.state.calendarEvents ?? [])
@@ -57,10 +55,12 @@
   )
   const loggedWorklogs = $derived(snapshot?.state.loggedWorklogs ?? [])
 
-  let dayKey = $state(toLocalDateKey(new Date()))
+  let dayKey = $state(WorkingSchedule.toLocalDateKey(new Date()))
   let dayPickerOpen = $state(false)
 
-  let dayPickerValue = $state<DateValue>(parseDayKeyOrToday(toLocalDateKey(new Date())))
+  let dayPickerValue = $state<DateValue>(
+    parseDayKeyOrToday(WorkingSchedule.toLocalDateKey(new Date()))
+  )
 
   $effect(() => {
     const normalizedPickerValue = formatDayKeyFromDateValue(dayPickerValue)
@@ -78,8 +78,8 @@
   const effectiveScheduleForDay = $derived.by(() => {
     const dayStart = new Date(`${dayKey}T00:00:00`)
     if (Number.isNaN(dayStart.getTime())) return defaultWorkingHours
-    const weekStartKey = getWeekStartKey(dayStart)
-    return sanitizeWorkingHoursSchedule(
+    const weekStartKey = WorkingSchedule.getWeekStartKey(dayStart)
+    return WorkingSchedule.sanitize(
       weeklyWorkingHoursOverrides[weekStartKey] ?? defaultWorkingHours
     )
   })
@@ -110,11 +110,9 @@
 
   const selectedWeekEnd = $derived(getSelectedWeekEndExclusive(selectedWeekStart))
 
-  const selectedWeekKey = $derived(toLocalDateKey(selectedWeekStart))
+  const selectedWeekKey = $derived(WorkingSchedule.toLocalDateKey(selectedWeekStart))
   const effectiveWorkingHours = $derived(
-    sanitizeWorkingHoursSchedule(
-      weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours
-    )
+    WorkingSchedule.sanitize(weeklyWorkingHoursOverrides[selectedWeekKey] ?? defaultWorkingHours)
   )
 
   const formatSessionDurationForReports = (session: TaskSession): string => {

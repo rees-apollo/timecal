@@ -57,8 +57,14 @@ jobs:
           name: windows-installers
           path: |
             dist/*.exe
-            dist/*.yml
             dist/*.blockmap
+          if-no-files-found: error
+
+      - name: Upload latest.yml artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # was: actions/upload-artifact@v4
+        with:
+          name: windows-latest-yml
+          path: dist/latest.yml
           if-no-files-found: error
 
   publish-windows:
@@ -77,6 +83,12 @@ jobs:
         uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # was: actions/download-artifact@v4
         with:
           name: windows-installers
+          path: ./release_assets
+
+      - name: Download latest.yml artifact
+        uses: actions/download-artifact@d3f86a106a0bac45b974a628896c90dbdf5c8093 # was: actions/download-artifact@v4
+        with:
+          name: windows-latest-yml
           path: ./release_assets
 
       - name: Resolve tag and verify release exists
@@ -106,6 +118,6 @@ jobs:
         run: |
           gh release upload "${TAG_NAME}" \
             ./release_assets/*.exe \
-            ./release_assets/*.yml \
+            ./release_assets/latest.yml \
             ./release_assets/*.blockmap \
             --clobber

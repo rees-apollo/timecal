@@ -1,4 +1,4 @@
-import { getWeekStartKey } from '../../shared/working-hours'
+import { WorkingSchedule } from '../../shared/working-schedule'
 import type { IpcMain } from 'electron'
 import { jiraClient } from './api-clients/jira-client'
 import { StateStore } from './state-manager'
@@ -12,7 +12,7 @@ import type {
   TaskSession,
   WorkingHoursSchedule
 } from '../../shared/types'
-import { calculateActiveTaskSecondsForRange } from '../../shared/task-time'
+import { calculateActiveTaskSecondsForRange } from '../../shared/day-timeline'
 
 const sameRange = (
   entry: { rangeStartIso?: string; rangeEndIso?: string },
@@ -134,8 +134,9 @@ export class WorklogManager {
     const workingHours = request.weekStartKey
       ? (snapshot.state.weeklyWorkingHoursOverrides[request.weekStartKey] ??
         snapshot.state.settings.workingHours)
-      : (snapshot.state.weeklyWorkingHoursOverrides[getWeekStartKey(new Date(session.startIso))] ??
-        snapshot.state.settings.workingHours)
+      : (snapshot.state.weeklyWorkingHoursOverrides[
+          WorkingSchedule.getWeekStartKey(new Date(session.startIso))
+        ] ?? snapshot.state.settings.workingHours)
 
     const alreadyLoggedSeconds = snapshot.state.loggedWorklogs
       .filter(

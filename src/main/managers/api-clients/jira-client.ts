@@ -63,9 +63,17 @@ export class JiraClient {
     })
 
     if (!response.ok) {
+      console.log(
+        `[JiraClient] Failed to search issues for query "${input.query}" (${response.status}). Response:`,
+        await response.text()
+      )
       const text = await response.text()
       throw new Error(`Jira issue picker failed (${response.status}): ${text}`)
     }
+    console.log(
+      `[JiraClient] Search issues response for query "${input.query}":`,
+      await response.clone().text()
+    )
 
     const data = (await response.json()) as JiraIssuePickerResponse
     const suggestions = (data.sections ?? [])
@@ -118,7 +126,12 @@ export class JiraClient {
     bookingCodeField: string
   }): Promise<string | undefined> {
     const field = input.bookingCodeField.trim()
-    if (!field) return undefined
+    if (!field) {
+      console.log(
+        `[JiraClient] No booking code field configured, skipping booking code fetch for ${input.issueKey}`
+      )
+      return undefined
+    }
 
     const params = new URLSearchParams({ fields: field })
     const url = `${ensureBaseUrl(input.baseUrl)}/rest/api/3/issue/${encodeURIComponent(input.issueKey)}?${params.toString()}`
@@ -130,7 +143,13 @@ export class JiraClient {
       }
     })
 
-    if (!response.ok) return undefined
+    if (!response.ok) {
+      console.log(
+        `[JiraClient] Failed to fetch issue details for ${input.issueKey} (${response.status}), skipping booking code. Response:`,
+        await response.text()
+      )
+      return undefined
+    }
 
     const data = (await response.json()) as JiraIssueDetailsResponse
     return stringifyUnknown(data.fields?.[field])
@@ -168,6 +187,10 @@ export class JiraClient {
     })
 
     if (!response.ok) {
+      console.log(
+        `[JiraClient] Failed to push worklog for ${input.worklog.issueKey} (${response.status}). Response:`,
+        await response.text()
+      )
       const text = await response.text()
       throw new Error(`Jira worklog push failed (${response.status}): ${text}`)
     }

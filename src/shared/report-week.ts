@@ -1,4 +1,4 @@
-import { toLocalDateKey } from './working-hours'
+import { WorkingSchedule } from './working-schedule'
 
 export const getCurrentWeekStart = (now = new Date()): Date => {
   const start = new Date(now)
@@ -33,5 +33,5 @@ export const getWeekRangeLabel = (start: Date, endExclusive: Date): string => {
 export const getWeekStartKeyForOffset = (offset: number): string => {
   const start = getCurrentWeekStart()
   start.setDate(start.getDate() + offset * 7)
-  return toLocalDateKey(start)
+  return WorkingSchedule.toLocalDateKey(start)
 }

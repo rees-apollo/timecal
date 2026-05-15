@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { TimesheetRow } from '../../../../shared/report-timesheet'
+  import type { TimesheetRow } from '../../../../shared/types'
   import * as Table from '$lib/components/ui/table'
   import { Badge } from '$lib/components/ui/badge'
 

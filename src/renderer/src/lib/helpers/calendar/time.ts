@@ -59,33 +59,49 @@ export const temporalToIso = (
     return new Date(value.epochMilliseconds).toISOString()
   }
 
-  const timeSuffix = endOfDay ? 'T23:59:59.999Z' : 'T00:00:00.000Z'
-  return new Date(`${value.toString()}${timeSuffix}`).toISOString()
+  // Convert plain date to local-timezone midnight / end-of-day, not UTC, so
+  // that the stored ISO instant matches the user's local calendar day.
+  const localTz = Temporal.Now.timeZoneId()
+  const plainTime = endOfDay
+    ? { hour: 23, minute: 59, second: 59, millisecond: 999 }
+    : { hour: 0, minute: 0, second: 0, millisecond: 0 }
+  return value.toZonedDateTime({ timeZone: localTz, plainTime }).toInstant().toString()
 }
 
 export const planningWindowFromDateTime = (
   dateTime: Temporal.ZonedDateTime
 ): { startIso: string; endIso: string } => {
-  const day = dateTime.toPlainDate().toString()
-  const start = new Date(`${day}T00:00:00.000Z`)
-  const end = new Date(`${day}T23:59:59.999Z`)
-  return { startIso: start.toISOString(), endIso: end.toISOString() }
+  const day = dateTime.toPlainDate()
+  const tz = dateTime.timeZoneId
+  const start = day.toZonedDateTime(tz).toInstant().toString()
+  const end = day
+    .toZonedDateTime({ timeZone: tz, plainTime: { hour: 23, minute: 59, second: 59, millisecond: 999 } })
+    .toInstant()
+    .toString()
+  return { startIso: start, endIso: end }
 }
 
 export const planningWindowFromDate = (
   date: Temporal.PlainDate
 ): { startIso: string; endIso: string } => {
-  const start = new Date(`${date.toString()}T00:00:00.000Z`)
-  const end = new Date(`${date.toString()}T23:59:59.999Z`)
-  return { startIso: start.toISOString(), endIso: end.toISOString() }
+  const tz = Temporal.Now.timeZoneId()
+  const start = date.toZonedDateTime(tz).toInstant().toString()
+  const end = date
+    .toZonedDateTime({ timeZone: tz, plainTime: { hour: 23, minute: 59, second: 59, millisecond: 999 } })
+    .toInstant()
+    .toString()
+  return { startIso: start, endIso: end }
 }
 
 export const toTemporalDateForPlanning = (
   startIso: string,
   endIso: string
 ): { start: Temporal.PlainDate; end: Temporal.PlainDate } => {
-  const startDate = Temporal.PlainDate.from(new Date(startIso).toISOString().slice(0, 10))
-  const endDate = Temporal.PlainDate.from(new Date(endIso).toISOString().slice(0, 10))
+  // Use local timezone to convert ISO instant → PlainDate so that an event
+  // starting at local midnight is attributed to the correct local calendar day.
+  const tz = Temporal.Now.timeZoneId()
+  const startDate = Temporal.Instant.from(startIso).toZonedDateTimeISO(tz).toPlainDate()
+  const endDate = Temporal.Instant.from(endIso).toZonedDateTimeISO(tz).toPlainDate()
   return { start: startDate, end: endDate }
 }
 

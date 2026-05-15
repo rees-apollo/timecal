@@ -1,5 +1,5 @@
 import { autoCustomTaskCategoryColor } from '../../shared/off-task-colors'
-import { sanitizeWorkingHoursSchedule } from '../../shared/working-hours'
+import { WorkingSchedule } from '../../shared/working-schedule'
 import type { IpcMain } from 'electron'
 import { jiraClient } from './api-clients/jira-client'
 import { StateStore } from './state-manager'
@@ -55,7 +55,7 @@ export class SettingsManager {
     return this.withStateUpdate(() => {
       this.stateStore.get().settings = {
         ...settings,
-        workingHours: sanitizeWorkingHoursSchedule(settings.workingHours),
+        workingHours: WorkingSchedule.sanitize(settings.workingHours),
         customTaskCategories: settings.customTaskCategories.map((category, index) => ({
           ...category,
           color: category.color || autoCustomTaskCategoryColor(category.name, index)
@@ -72,7 +72,7 @@ export class SettingsManager {
         return
       }
 
-      state.weeklyWorkingHoursOverrides[input.weekStartKey] = sanitizeWorkingHoursSchedule(
+      state.weeklyWorkingHoursOverrides[input.weekStartKey] = WorkingSchedule.sanitize(
         input.schedule
       )
     })
