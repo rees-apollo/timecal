@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.6.1](https://github.com/rees-apollo/timecal/compare/timecal-v1.6.0...timecal-v1.6.1) (2026-05-15)
+
+
+### Bug Fixes
+
+* incorrect function called on save hours ([1db40fe](https://github.com/rees-apollo/timecal/commit/1db40fe8b342ef866ad2c1af91c982f3c20f29a0))
+* refactor code for better management and reliability ([52944b5](https://github.com/rees-apollo/timecal/commit/52944b560dcbe29240ef2f29f4e2d934ebe9f11d))
+
 ## [1.6.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.5.0...timecal-v1.6.0) (2026-04-28)
 
 
