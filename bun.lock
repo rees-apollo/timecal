@@ -32,7 +32,7 @@
         "@sveltejs/vite-plugin-svelte": "7.0.0",
         "@tailwindcss/postcss": "^4.2.4",
         "@types/node": "^25.6.0",
-        "bits-ui": "^2.18.0",
+        "bits-ui": "^2.18.1",
         "clsx": "^2.1.1",
         "electron": "^41.3.0",
         "electron-builder": "^26.8.1",
@@ -141,7 +141,7 @@
 
     "@electron/get": ["@electron/get@3.1.0", "", { "dependencies": { "debug": "^4.1.1", "env-paths": "^2.2.0", "fs-extra": "^8.1.0", "got": "^11.8.5", "progress": "^2.0.3", "semver": "^6.2.0", "sumchecker": "^3.0.1" }, "optionalDependencies": { "global-agent": "^3.0.0" } }, "sha512-F+nKc0xW+kVbBRhFzaMgPy3KwmuNTYX1fx6+FxxoSnNgwYX6LD7AKBTWkU0MQ6IBoe7dz069CNkR673sPAgkCQ=="],
 
-    "@electron/node-gyp": ["@electron/node-gyp@github:electron/node-gyp#06b29aa", { "dependencies": { "env-paths": "^2.2.0", "exponential-backoff": "^3.1.1", "glob": "^8.1.0", "graceful-fs": "^4.2.6", "make-fetch-happen": "^10.2.1", "nopt": "^6.0.0", "proc-log": "^2.0.1", "semver": "^7.3.5", "tar": "^6.2.1", "which": "^2.0.2" }, "bin": "./bin/node-gyp.js" }, "electron-node-gyp-06b29aa", "sha512-UJwi6aXMAiUaOvqPHVlMtCOLRa1QAU2SqYD9H07KHpN+I2mBoFuxP1HnUOkt86+j+/o/XyHpM7D33JFFQi/jfA=="],
+    "@electron/node-gyp": ["@electron/node-gyp@github:electron/node-gyp#06b29aa", { "dependencies": { "env-paths": "^2.2.0", "exponential-backoff": "^3.1.1", "glob": "^8.1.0", "graceful-fs": "^4.2.6", "make-fetch-happen": "^10.2.1", "nopt": "^6.0.0", "proc-log": "^2.0.1", "semver": "^7.3.5", "tar": "^6.2.1", "which": "^2.0.2" }, "bin": "./bin/node-gyp.js" }, "electron-node-gyp-06b29aa"],
 
     "@electron/notarize": ["@electron/notarize@2.5.0", "", { "dependencies": { "debug": "^4.1.1", "fs-extra": "^9.0.1", "promise-retry": "^2.0.1" } }, "sha512-jNT8nwH1f9X5GEITXaQ8IF/KdskvIkOFfB2CvwumsveVidzpSc+mvhhTMdAGSYF3O+Nq49lJ7y+ssODRXu06+A=="],
 
@@ -629,7 +629,7 @@
 
     "bignumber.js": ["bignumber.js@2.4.0", "", {}, "sha512-uw4ra6Cv483Op/ebM0GBKKfxZlSmn6NgFRby5L3yGTlunLj53KQgndDlqy2WVFOwgvurocApYkSud0aO+mvrpQ=="],
 
-    "bits-ui": ["bits-ui@2.18.0", "", { "dependencies": { "@floating-ui/core": "^1.7.1", "@floating-ui/dom": "^1.7.1", "esm-env": "^1.1.2", "runed": "^0.35.1", "svelte-toolbelt": "^0.10.6", "tabbable": "^6.2.0" }, "peerDependencies": { "@internationalized/date": "^3.8.1", "svelte": "^5.33.0" } }, "sha512-GLOBZRVy3hxNHIQ2MpD/+5aK9KcBFZRhUJtZ1UDABXdlVR4K6zFpgt4T+Rwuhf2sQzlc6yK1q/DprHPjwT4Pjw=="],
+    "bits-ui": ["bits-ui@2.18.1", "", { "dependencies": { "@floating-ui/core": "^1.7.1", "@floating-ui/dom": "^1.7.1", "esm-env": "^1.1.2", "runed": "^0.35.1", "svelte-toolbelt": "^0.10.6", "tabbable": "^6.2.0" }, "peerDependencies": { "@internationalized/date": "^3.8.1", "svelte": "^5.33.0" } }, "sha512-KkemzKFH4T3gt3H+P86JcnAWExjByv/6vlwjm/BoCwTPHu03yiCdxbghdJLvFReQTe0acCAiRcKfmixxD6XvlA=="],
 
     "bl": ["bl@4.1.0", "", { "dependencies": { "buffer": "^5.5.0", "inherits": "^2.0.4", "readable-stream": "^3.4.0" } }, "sha512-1W07cM9gS6DcLperZfFSj+bWLtaPGSOHWhPiGzXmvVJbRLdG82sH/Kn8EtW1VqWVA54AKf2h5k5BbnIbwF3h6w=="],
 
