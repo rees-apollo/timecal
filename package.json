@@ -51,7 +51,7 @@
     "@fontsource-variable/instrument-sans": "^5.2.8",
     "@fontsource-variable/nunito-sans": "^5.2.7",
     "@internationalized/date": "^3.12.1",
-    "@lucide/svelte": "^1.9.0",
+    "@lucide/svelte": "^1.14.0",
     "@sveltejs/vite-plugin-svelte": "7.0.0",
     "@tailwindcss/postcss": "^4.2.4",
     "@types/node": "^25.6.0",
