@@ -147,10 +147,7 @@
             size="sm"
             disabled={isBusy}
             onclick={() =>
-              saveWeeklyWorkingHours(
-                selectedWeekKey,
-                WorkingSchedule.sanitize(weekOverrideDraft)
-              )}
+              saveWeeklyWorkingHours(selectedWeekKey, WorkingSchedule.sanitize(weekOverrideDraft))}
           >
             Save
           </Button>
