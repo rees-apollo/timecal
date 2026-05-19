@@ -1,5 +1,6 @@
 import type { IpcMain } from 'electron'
 import { StateStore } from './state-manager'
+import { mergeJiraIssueEntry } from './jira-cache-manager'
 import { inferTaskType } from '../../shared/task-type'
 import type {
   AppSnapshot,
@@ -46,17 +47,19 @@ export class TaskManager {
     taskType?: 'jira' | 'custom'
   } {
     const state = this.stateStore.get()
+
+    // Use the dedicated cache as the primary source for summary and booking code
+    const cached = state.jiraIssueCache[issueKey]
+
+    // Fall back to sessions only for task type (not stored in cache)
     const latestSession = [...state.sessions]
       .reverse()
       .find((session) => session.jiraIssueKey === issueKey)
-    if (!latestSession) {
-      return { summary: issueKey }
-    }
 
     return {
-      summary: latestSession.jiraIssueSummary,
-      bookingCode: latestSession.bookingCode,
-      taskType: latestSession.taskType
+      summary: cached?.summary ?? latestSession?.jiraIssueSummary ?? issueKey,
+      bookingCode: cached?.bookingCode ?? latestSession?.bookingCode,
+      taskType: latestSession?.taskType
     }
   }
 
@@ -85,6 +88,14 @@ export class TaskManager {
       state.activeSessionId = nextSession.id
 
       if (taskType === 'jira') {
+        // Upsert the cache with whatever data we have at session start
+        const existing = state.jiraIssueCache[input.issueKey]
+        state.jiraIssueCache[input.issueKey] = mergeJiraIssueEntry(
+          existing,
+          { summary: input.summary, bookingCode: input.bookingCode },
+          input.issueKey
+        )
+
         state.recentIssueKeys = [
           input.issueKey,
           ...state.recentIssueKeys.filter((item) => item !== input.issueKey)

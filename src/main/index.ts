@@ -4,6 +4,7 @@ import iconPng from '../../resources/icon.png?asset'
 import iconIco from '../../resources/icon.ico?asset'
 import { setupAutoUpdates } from './managers/update-manager'
 import { StateStore } from './managers/state-manager'
+import { JiraCacheManager } from './managers/jira-cache-manager'
 import { EventManager } from './managers/event-manager'
 import { SettingsManager } from './managers/settings-manager'
 import { TaskManager } from './managers/task-manager'
@@ -69,9 +70,12 @@ const withStateUpdate = (updater: () => void): AppSnapshot => {
   return snapshot
 }
 
+const jiraCacheManager = new JiraCacheManager({ stateStore, withStateUpdate })
+
 const settingsManager = new SettingsManager({
   stateStore,
-  withStateUpdate
+  withStateUpdate,
+  jiraCacheManager
 })
 
 const taskManager = new TaskManager({
@@ -186,6 +190,9 @@ app.whenReady().then(() => {
         .catch((err) => console.error('Scheduled calendar pull failed:', err)),
     15 * 60 * 1000
   )
+
+  // Start periodic and aggressive re-fetching of Jira issue metadata.
+  jiraCacheManager.scheduleRefresh()
   console.log(
     "SETTING UP TRAY MANAGER WITH SNAPSHOT AND TASK MANAGER'S getRecentIssueDetails, startSession, stopActiveSession METHODS, AND APP QUIT/SHOW BEHAVIOURS"
   )

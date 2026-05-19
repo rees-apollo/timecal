@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AppSnapshot, BuildWorklogDraftInput, TaskSession } from '../../../shared/types'
+  import type { BuildWorklogDraftInput } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import * as Tabs from '$lib/components/ui/tabs'
   import { Button } from '$lib/components/ui/button'
@@ -25,35 +25,36 @@
     getSelectedWeekStart
   } from '$lib/helpers/report-dialog/week-utils'
   import { WorkingSchedule } from '../../../shared/working-schedule'
+  import { appState } from '$lib/stores/app-state.svelte'
 
   let {
     open = $bindable(false),
-    snapshot = null,
-    isBusy = false,
     openDraftDialog
   }: {
     open?: boolean
-    snapshot?: AppSnapshot | null
-    isBusy?: boolean
     openDraftDialog: (input?: string | BuildWorklogDraftInput) => Promise<void>
   } = $props()
 
-  const sessions = $derived(snapshot?.state.sessions ?? [])
+  const sessions = $derived(appState.enrichedSessions)
   const jiraSessions = $derived(
     sessions.filter((session) => (session.taskType ?? 'jira') === 'jira')
   )
   const defaultWorkingHours = $derived(
-    WorkingSchedule.sanitize(snapshot?.state.settings.workingHours)
+    WorkingSchedule.sanitize(appState.snapshot?.state.settings.workingHours)
   )
-  const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
-  const calendarEvents = $derived(snapshot?.state.calendarEvents ?? [])
-  const calendarLinks = $derived(snapshot?.state.calendarLinks ?? [])
-  const manualCustomTaskEntries = $derived(snapshot?.state.manualCustomTaskEntries ?? [])
-  const customTaskCategories = $derived(snapshot?.state.settings.customTaskCategories ?? [])
+  const weeklyWorkingHoursOverrides = $derived(
+    appState.snapshot?.state.weeklyWorkingHoursOverrides ?? {}
+  )
+  const calendarEvents = $derived(appState.snapshot?.state.calendarEvents ?? [])
+  const calendarLinks = $derived(appState.snapshot?.state.calendarLinks ?? [])
+  const manualCustomTaskEntries = $derived(appState.snapshot?.state.manualCustomTaskEntries ?? [])
+  const customTaskCategories = $derived(
+    appState.snapshot?.state.settings.customTaskCategories ?? []
+  )
   const activeSessionId = $derived(
-    snapshot?.activeSession?.id ?? snapshot?.state.activeSessionId ?? ''
+    appState.snapshot?.activeSession?.id ?? appState.snapshot?.state.activeSessionId ?? ''
   )
-  const loggedWorklogs = $derived(snapshot?.state.loggedWorklogs ?? [])
+  const loggedWorklogs = $derived(appState.snapshot?.state.loggedWorklogs ?? [])
 
   let dayKey = $state(WorkingSchedule.toLocalDateKey(new Date()))
   let dayPickerOpen = $state(false)
@@ -196,7 +197,7 @@
       <Tabs.Content value="worklogs" class="flex min-h-0 flex-1 flex-col">
         <ReportWorklogsTab
           {jiraSessionsForSelectedWeek}
-          {isBusy}
+          isBusy={appState.isBusy}
           {selectedWeekStart}
           {selectedWeekEnd}
           {selectedWeekKey}

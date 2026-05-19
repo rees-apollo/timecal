@@ -1,19 +1,38 @@
-import type { CustomTaskCategory, JiraIssue, TaskSession } from '../../../../../shared/types'
+import type {
+  CustomTaskCategory,
+  JiraIssue,
+  JiraIssueCacheEntry,
+  TaskSession
+} from '../../../../../shared/types'
 import type { KnownTaskMetadata, TransitionDraftRow } from './types'
 
 export const buildKnownTasksByKey = (
   jiraResults: JiraIssue[],
   customTaskCategories: CustomTaskCategory[],
-  sessions: TaskSession[]
+  sessions: TaskSession[],
+  jiraIssueCache?: Record<string, JiraIssueCacheEntry>
 ): Map<string, KnownTaskMetadata> => {
   const map = new Map<string, KnownTaskMetadata>()
 
-  for (const issue of jiraResults) {
-    map.set(issue.key, {
-      summary: issue.summary,
-      bookingCode: issue.bookingCode,
-      taskType: 'jira'
-    })
+  // Sessions contribute known keys only — summary/bookingCode come from authoritative sources below
+  for (const session of sessions) {
+    if (!map.has(session.jiraIssueKey)) {
+      map.set(session.jiraIssueKey, { summary: '', bookingCode: undefined, taskType: 'jira' })
+    }
+  }
+
+  // Cache is the single source of truth for Jira issue metadata
+  if (jiraIssueCache) {
+    for (const [key, entry] of Object.entries(jiraIssueCache)) {
+      const existing = map.get(key)
+      if (existing) {
+        map.set(key, {
+          ...existing,
+          summary: entry.summary && entry.summary !== key ? entry.summary : existing.summary,
+          bookingCode: entry.bookingCode ?? existing.bookingCode
+        })
+      }
+    }
   }
 
   for (const category of customTaskCategories) {
@@ -24,11 +43,12 @@ export const buildKnownTasksByKey = (
     })
   }
 
-  for (const session of sessions) {
-    map.set(session.jiraIssueKey, {
-      summary: session.jiraIssueSummary,
-      bookingCode: session.bookingCode,
-      taskType: session.taskType ?? 'jira'
+  // Live search results take highest priority for Jira keys
+  for (const issue of jiraResults) {
+    map.set(issue.key, {
+      summary: issue.summary,
+      bookingCode: issue.bookingCode,
+      taskType: 'jira'
     })
   }
 

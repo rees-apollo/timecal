@@ -1,11 +1,5 @@
 ﻿<script lang="ts">
-  import type {
-    CustomTaskCategory,
-    JiraIssue,
-    TaskSession,
-    TaskTransitionInput,
-    WorkingHoursSchedule
-  } from '../../../shared/types'
+  import type { TaskTransitionInput } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
   import { toast } from 'svelte-sonner'
@@ -21,34 +15,30 @@
     type TransitionDraftRow
   } from '$lib/helpers/task-transitions'
   import { WorkingSchedule } from '../../../shared/working-schedule'
+  import { appState } from '$lib/stores/app-state.svelte'
 
   let {
     open = $bindable(false),
-    sessions = [],
-    jiraResults = [],
-    customTaskCategories = [],
-    workingHours,
-    weeklyWorkingHoursOverrides = {},
-    isBusy = false,
     onSave
   }: {
     open?: boolean
-    sessions?: TaskSession[]
-    jiraResults?: JiraIssue[]
-    customTaskCategories?: CustomTaskCategory[]
-    workingHours: WorkingHoursSchedule
-    weeklyWorkingHoursOverrides?: Record<string, WorkingHoursSchedule>
-    isBusy?: boolean
     onSave: (transitions: TaskTransitionInput[]) => Promise<void>
   } = $props()
 
-  const defaultWorkingHours = $derived(WorkingSchedule.sanitize(workingHours))
+  const sessions = $derived(appState.enrichedSessions)
+  const jiraResults = $derived(appState.jiraResults)
+  const customTaskCategories = $derived(appState.settings.customTaskCategories)
+  const jiraIssueCache = $derived(appState.snapshot?.state.jiraIssueCache ?? {})
+  const defaultWorkingHours = $derived(WorkingSchedule.sanitize(appState.settings.workingHours))
+  const weeklyWorkingHoursOverrides = $derived(
+    appState.snapshot?.state.weeklyWorkingHoursOverrides ?? {}
+  )
 
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
 
   const knownTasksByKey = $derived.by(() => {
-    return buildKnownTasksByKey(jiraResults, customTaskCategories, sessions)
+    return buildKnownTasksByKey(jiraResults, customTaskCategories, sessions, jiraIssueCache)
   })
 
   $effect(() => {
@@ -116,6 +106,7 @@
         {jiraResults}
         {customTaskCategories}
         {sessions}
+        {jiraIssueCache}
         {updateRow}
         {applyKnownTask}
         {removeRow}
@@ -147,7 +138,7 @@
 
     <Dialog.Footer>
       <Button variant="secondary" onclick={() => (open = false)}>Cancel</Button>
-      <Button disabled={isBusy} onclick={save}>Save History</Button>
+      <Button disabled={appState.isBusy} onclick={save}>Save History</Button>
     </Dialog.Footer>
   </Dialog.Content>
 </Dialog.Root>

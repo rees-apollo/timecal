@@ -1,5 +1,5 @@
 <script lang="ts">
-  import type { AppSnapshot, WorkingHoursSchedule } from '../../../shared/types'
+  import type { WorkingHoursSchedule } from '../../../shared/types'
   import { DEFAULT_SETTINGS } from '../../../shared/defaults'
   import * as Dialog from '$lib/components/ui/dialog'
   import * as Table from '$lib/components/ui/table'
@@ -12,23 +12,22 @@
     REPORT_WEEKDAYS
   } from '$lib/helpers/report-dialog/week-utils'
   import { WorkingSchedule } from '../../../shared/working-schedule'
+  import { appState } from '$lib/stores/app-state.svelte'
 
   let {
     open = $bindable(false),
-    snapshot = null,
-    isBusy = false,
     saveWeeklyWorkingHours
   }: {
     open?: boolean
-    snapshot?: AppSnapshot | null
-    isBusy?: boolean
     saveWeeklyWorkingHours: (weekStartKey: string, schedule?: WorkingHoursSchedule) => Promise<void>
   } = $props()
 
   const defaultWorkingHours = $derived(
-    WorkingSchedule.sanitize(snapshot?.state.settings.workingHours)
+    WorkingSchedule.sanitize(appState.snapshot?.state.settings.workingHours)
   )
-  const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
+  const weeklyWorkingHoursOverrides = $derived(
+    appState.snapshot?.state.weeklyWorkingHoursOverrides ?? {}
+  )
 
   let weekOffset = $state(0)
   const weekdays = REPORT_WEEKDAYS
@@ -138,14 +137,14 @@
           <Button
             variant="outline"
             size="sm"
-            disabled={isBusy}
+            disabled={appState.isBusy}
             onclick={() => saveWeeklyWorkingHours(selectedWeekKey)}
           >
             Use Default
           </Button>
           <Button
             size="sm"
-            disabled={isBusy}
+            disabled={appState.isBusy}
             onclick={() =>
               saveWeeklyWorkingHours(selectedWeekKey, WorkingSchedule.sanitize(weekOverrideDraft))}
           >

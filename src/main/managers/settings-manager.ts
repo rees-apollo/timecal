@@ -3,6 +3,7 @@ import { WorkingSchedule } from '../../shared/working-schedule'
 import type { IpcMain } from 'electron'
 import { jiraClient } from './api-clients/jira-client'
 import { StateStore } from './state-manager'
+import type { JiraCacheManager } from './jira-cache-manager'
 import type {
   AppSettings,
   AppSnapshot,
@@ -14,6 +15,7 @@ import type {
 interface SettingsManagerOptions {
   stateStore: StateStore
   withStateUpdate: (updater: () => void) => AppSnapshot
+  jiraCacheManager: JiraCacheManager
 }
 
 export class SettingsManager {
@@ -21,9 +23,12 @@ export class SettingsManager {
 
   private readonly withStateUpdate: (updater: () => void) => AppSnapshot
 
+  private readonly jiraCacheManager: JiraCacheManager
+
   constructor(options: SettingsManagerOptions) {
     this.stateStore = options.stateStore
     this.withStateUpdate = options.withStateUpdate
+    this.jiraCacheManager = options.jiraCacheManager
   }
 
   registerIpcHandlers(ipcMain: IpcMain): void {
@@ -81,7 +86,7 @@ export class SettingsManager {
   async searchIssues(input: SearchIssuesInput): Promise<JiraIssue[]> {
     const settings = this.getRequiredJiraSettings()
     try {
-      return await jiraClient.searchIssues({
+      const results = await jiraClient.searchIssues({
         baseUrl: settings.jiraBaseUrl,
         email: settings.jiraEmail,
         apiToken: settings.jiraApiToken,
@@ -89,6 +94,15 @@ export class SettingsManager {
         query: input.query,
         maxResults: input.maxResults ?? 20
       })
+      // Populate the cache with the freshest data we just fetched
+      this.jiraCacheManager.upsertEntries(
+        results.map((r) => ({
+          key: r.key,
+          summary: r.summary,
+          bookingCode: r.bookingCode
+        }))
+      )
+      return results
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error)
       throw new Error(`Jira issue search failed: ${message}`)

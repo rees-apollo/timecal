@@ -64,6 +64,12 @@ export interface JiraIssue {
   bookingCode?: string
 }
 
+export interface JiraIssueCacheEntry {
+  summary: string
+  bookingCode?: string
+  lastFetchedIso: string
+}
+
 export interface TaskSession {
   id: string
   jiraIssueKey: string
@@ -152,6 +158,7 @@ export interface PersistedState {
   sessions: TaskSession[]
   loggedWorklogs: LoggedWorklogEntry[]
   recentIssueKeys: string[]
+  jiraIssueCache: Record<string, JiraIssueCacheEntry>
   calendarLastPulledIso?: string
   calendarCacheStartIso?: string
   calendarEvents: CalendarEvent[]

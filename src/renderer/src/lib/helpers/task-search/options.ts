@@ -1,4 +1,9 @@
-import type { CustomTaskCategory, JiraIssue, TaskSession } from '../../../../../shared/types'
+import type {
+  CustomTaskCategory,
+  JiraIssue,
+  JiraIssueCacheEntry,
+  TaskSession
+} from '../../../../../shared/types'
 
 type SessionTaskType = 'jira' | 'custom'
 
@@ -19,10 +24,17 @@ export const getTicketSummaryByKey = (input: {
   jiraResults: JiraIssue[]
   sessions: TaskSession[]
   customTaskCategories: CustomTaskCategory[]
+  jiraIssueCache?: Record<string, JiraIssueCacheEntry>
 }): string | undefined => {
-  const { key, jiraResults, sessions, customTaskCategories } = input
+  const { key, jiraResults, sessions, customTaskCategories, jiraIssueCache } = input
+
+  // Fresh search results take highest priority
   const issue = jiraResults.find((item) => item.key === key)
   if (issue) return issue.summary
+
+  // Dedicated cache is the single source of truth for persisted ticket data
+  const cached = jiraIssueCache?.[key]
+  if (cached?.summary && cached.summary !== key) return cached.summary
 
   const customCategoryNames = categoryNameSet(customTaskCategories)
   const recentJiraSession = [...sessions]
@@ -42,6 +54,7 @@ export const getSortedFilteredTicketKeys = (input: {
   customTaskCategories: CustomTaskCategory[]
   primaryIssueKey: string
   currentKey: string
+  jiraIssueCache?: Record<string, JiraIssueCacheEntry>
 }): string[] => {
   const {
     jiraQuery,
@@ -50,7 +63,8 @@ export const getSortedFilteredTicketKeys = (input: {
     recentIssueKeys,
     customTaskCategories,
     primaryIssueKey,
-    currentKey
+    currentKey,
+    jiraIssueCache
   } = input
 
   const customCategoryNames = categoryNameSet(customTaskCategories)
@@ -75,7 +89,8 @@ export const getSortedFilteredTicketKeys = (input: {
       key,
       jiraResults,
       sessions,
-      customTaskCategories
+      customTaskCategories,
+      jiraIssueCache
     })
     return normalize(`${key} ${summary ?? ''}`).includes(query)
   })

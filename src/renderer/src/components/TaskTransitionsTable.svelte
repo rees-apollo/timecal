@@ -1,6 +1,11 @@
 <script lang="ts">
   import { getLocalTimeZone, parseDate, type DateValue } from '@internationalized/date'
-  import type { CustomTaskCategory, JiraIssue, TaskSession } from '../../../shared/types'
+  import type {
+    CustomTaskCategory,
+    JiraIssue,
+    JiraIssueCacheEntry,
+    TaskSession
+  } from '../../../shared/types'
   import { Button } from '$lib/components/ui/button'
   import Calendar from '$lib/components/ui/calendar/calendar.svelte'
   import { Input } from '$lib/components/ui/input'
@@ -18,6 +23,7 @@
     jiraResults,
     customTaskCategories,
     sessions,
+    jiraIssueCache = {},
     updateRow,
     applyKnownTask,
     removeRow
@@ -27,6 +33,7 @@
     jiraResults: JiraIssue[]
     customTaskCategories: CustomTaskCategory[]
     sessions: TaskSession[]
+    jiraIssueCache?: Record<string, JiraIssueCacheEntry>
     updateRow: (index: number, next: Partial<TransitionDraftRow>) => void
     applyKnownTask: (index: number, nextKey?: string) => void
     removeRow: (index: number) => void
@@ -40,7 +47,8 @@
     jiraResults,
     customTaskCategories,
     sessions,
-    recentIssueKeys
+    recentIssueKeys,
+    jiraIssueCache
   })
 
   let startDatePopoverOpenById = $state<Record<string, boolean>>({})

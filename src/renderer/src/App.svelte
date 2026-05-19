@@ -5,11 +5,9 @@
     AppSnapshot,
     BuildWorklogDraftInput,
     CalendarEventClassification,
-    JiraIssue,
     TaskTransitionInput,
     WorklogDraft
   } from '../../shared/types'
-  import { DEFAULT_SETTINGS } from '../../shared/defaults'
   import { inferTaskType } from '../../shared/task-type'
   import { WorkingSchedule } from '../../shared/working-schedule'
   import MainCalendarView from './components/MainCalendarView.svelte'
@@ -23,22 +21,12 @@
   import { Toaster } from '$lib/components/ui/sonner'
   import { toast } from 'svelte-sonner'
   import { ModeWatcher, mode, setMode } from 'mode-watcher'
+  import { appState } from '$lib/stores/app-state.svelte'
 
-  let snapshot: AppSnapshot | null = $state(null)
-  let settings: AppSettings = $state({ ...DEFAULT_SETTINGS })
-
-  let isBusy = $state(false)
-
-  let jiraResults: JiraIssue[] = $state([])
   let taskSelection = $state({
     selectedIssueKey: '',
     otherTicketMap: {} as Record<string, string>
   })
-  let dockTaskSearchState = $state<{ jiraQuery: string; activeTab: 'jira' | 'custom' }>({
-    jiraQuery: '',
-    activeTab: 'jira'
-  })
-
   let draftDialogOpen = $state(false)
   let draftComment = $state('')
   let worklogDraft: WorklogDraft | null = $state(null)
@@ -48,27 +36,15 @@
   let weeklyWorkingHoursDialogOpen = $state(false)
   let transitionsDialogOpen = $state(false)
   let calendarWeekStartKey = $state(WorkingSchedule.getWeekStartKey(new Date()))
-  const isDarkMode = $derived(mode.current === 'dark')
-  const weeklyWorkingHoursOverrides = $derived(snapshot?.state.weeklyWorkingHoursOverrides ?? {})
+
+  const weeklyWorkingHoursOverrides = $derived(
+    appState.snapshot?.state.weeklyWorkingHoursOverrides ?? {}
+  )
   const effectiveCalendarWorkingHours = $derived(
     WorkingSchedule.sanitize(
-      weeklyWorkingHoursOverrides[calendarWeekStartKey] ?? settings.workingHours
+      weeklyWorkingHoursOverrides[calendarWeekStartKey] ?? appState.settings.workingHours
     )
   )
-
-  const activeIssueKey = $derived(snapshot?.activeSession?.jiraIssueKey ?? '')
-  const activeIssueLabel = $derived.by(() => {
-    if (!activeIssueKey) return 'No active task'
-    const match = jiraResults.find((i) => i.key === activeIssueKey)
-    if (match) return `${match.key}: ${match.summary}`
-    const fromSession = snapshot?.state.sessions
-      .slice()
-      .reverse()
-      .find((session) => session.jiraIssueKey === activeIssueKey)
-    return fromSession
-      ? `${fromSession.jiraIssueKey}: ${fromSession.jiraIssueSummary}`
-      : activeIssueKey
-  })
 
   async function handleSelectIssue(key: string): Promise<void> {
     taskSelection.selectedIssueKey = key
@@ -82,11 +58,11 @@
 
   async function handleClearActiveTask(): Promise<void> {
     taskSelection.selectedIssueKey = ''
-    if (snapshot?.activeSession) await stopTask()
+    if (appState.snapshot?.activeSession) await stopTask()
   }
 
   const toggleThemeMode = (): void => {
-    setMode(isDarkMode ? 'light' : 'dark')
+    setMode(mode.current === 'dark' ? 'light' : 'dark')
   }
 
   const handleCalendarDisplayedWeekChange = (weekStartKey: string): void => {
@@ -94,19 +70,19 @@
   }
 
   const applySnapshot = (next: AppSnapshot): void => {
-    snapshot = next
-    settings = { ...next.state.settings }
+    appState.snapshot = next
+    appState.settings = { ...next.state.settings }
   }
 
   const runAction = async (action: () => Promise<void>, successMessage?: string): Promise<void> => {
-    isBusy = true
+    appState.isBusy = true
     try {
       await action()
       if (successMessage) toast(successMessage)
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Unknown error')
     } finally {
-      isBusy = false
+      appState.isBusy = false
     }
   }
 
@@ -117,7 +93,7 @@
 
   const saveSettings = async (): Promise<void> => {
     await runAction(async () => {
-      const next = await window.api.saveSettings($state.snapshot(settings))
+      const next = await window.api.saveSettings($state.snapshot(appState.settings))
       applySnapshot(next)
     }, 'Settings saved.')
   }
@@ -137,14 +113,14 @@
 
   const searchIssues = async (): Promise<void> => {
     await runAction(async () => {
-      jiraResults = await window.api.searchIssues({
-        query: dockTaskSearchState.jiraQuery,
+      appState.jiraResults = await window.api.searchIssues({
+        query: appState.dockSearchState.jiraQuery,
         maxResults: 25
       })
-      if (jiraResults.length > 0 && !taskSelection.selectedIssueKey) {
-        taskSelection.selectedIssueKey = jiraResults[0].key
+      if (appState.jiraResults.length > 0 && !taskSelection.selectedIssueKey) {
+        taskSelection.selectedIssueKey = appState.jiraResults[0].key
       }
-      toast.success(`Loaded ${jiraResults.length} Jira issues.`)
+      toast.success(`Loaded ${appState.jiraResults.length} Jira issues.`)
     })
   }
 
@@ -155,8 +131,8 @@
       return
     }
 
-    const issue = jiraResults.find((item) => item.key === trimmedKey)
-    const customCategory = settings.customTaskCategories.find((c) => c.name === trimmedKey)
+    const issue = appState.jiraResults.find((item) => item.key === trimmedKey)
+    const customCategory = appState.settings.customTaskCategories.find((c) => c.name === trimmedKey)
     const taskInput = issue
       ? {
           issueKey: issue.key,
@@ -180,12 +156,12 @@
 
     await runAction(
       async () => {
-        const next = snapshot?.activeSession
+        const next = appState.snapshot?.activeSession
           ? await window.api.switchTask(taskInput)
           : await window.api.startTask(taskInput)
         applySnapshot(next)
       },
-      snapshot?.activeSession ? 'Switched primary task.' : 'Started primary task.'
+      appState.snapshot?.activeSession ? 'Switched primary task.' : 'Started primary task.'
     )
   }
 
@@ -290,24 +266,24 @@
   }
 
   const getClassification = (eventId: string): CalendarEventClassification => {
-    const exact = snapshot?.state.calendarLinks.find((item) => item.eventId === eventId)
+    const exact = appState.snapshot?.state.calendarLinks.find((item) => item.eventId === eventId)
     if (exact?.classification) return exact.classification
 
     const seriesKey = getImportedSeriesKey(eventId)
     if (!seriesKey) return 'unclassified'
 
-    const series = snapshot?.state.calendarLinks.find((item) => item.eventId === seriesKey)
+    const series = appState.snapshot?.state.calendarLinks.find((item) => item.eventId === seriesKey)
     return series?.classification ?? 'unclassified'
   }
 
   const getCustomTaskCategory = (eventId: string): string | undefined => {
-    const exact = snapshot?.state.calendarLinks.find((item) => item.eventId === eventId)
+    const exact = appState.snapshot?.state.calendarLinks.find((item) => item.eventId === eventId)
     if (exact?.customTaskCategory) return exact.customTaskCategory
 
     const seriesKey = getImportedSeriesKey(eventId)
     if (!seriesKey) return undefined
 
-    const series = snapshot?.state.calendarLinks.find((item) => item.eventId === seriesKey)
+    const series = appState.snapshot?.state.calendarLinks.find((item) => item.eventId === seriesKey)
     return series?.customTaskCategory
   }
 
@@ -317,13 +293,13 @@
     if (classification === 'other-ticket') return '#1d4ed8'
     if (classification === 'custom-task') {
       const category = getCustomTaskCategory(eventId)
-      const configuredColor = settings.customTaskCategories.find(
+      const configuredColor = appState.settings.customTaskCategories.find(
         (item) => item.name === category
       )?.color
       return configuredColor || '#d97706'
     }
 
-    const event = snapshot?.state.calendarEvents.find((item) => item.id === eventId)
+    const event = appState.snapshot?.state.calendarEvents.find((item) => item.id === eventId)
     if (event?.source === 'off-task' || event?.source === 'planning') return '#4338ca'
     return '#64748b'
   }
@@ -340,14 +316,6 @@
     }
   })
 
-  const mainCalendarContext = $derived({
-    snapshot,
-    settings,
-    jiraResults,
-    sessions: snapshot?.state.sessions ?? [],
-    workingHours: effectiveCalendarWorkingHours
-  })
-
   const mainCalendarActions = {
     classifyEvent,
     createPlanningEvent,
@@ -360,26 +328,6 @@
     getCustomTaskCategory,
     getEventColor
   }
-
-  const dockTaskSearchData = $derived({
-    jiraResults,
-    customTaskCategories: settings.customTaskCategories,
-    sessions: snapshot?.state.sessions ?? [],
-    recentIssueKeys: snapshot?.state.recentIssueKeys ?? []
-  })
-
-  const dockTaskSearchSelection = $derived({
-    primaryIssueKey: activeIssueKey,
-    currentKey: activeIssueKey,
-    currentCustomTaskCategory: ''
-  })
-
-  const dockTaskSearchUi = $derived.by(() => ({
-    useSelectionTrigger: true,
-    triggerLabel: activeIssueLabel,
-    triggerButtonClass: 'h-8 w-[220px] justify-between rounded-full text-sm',
-    popoverContentClass: 'w-[320px] p-3'
-  }))
 </script>
 
 <ModeWatcher />
@@ -389,7 +337,7 @@
   <!-- Full-screen calendar -->
   <div class="h-screen w-screen">
     <MainCalendarView
-      context={mainCalendarContext}
+      workingHours={effectiveCalendarWorkingHours}
       bind:selection={taskSelection}
       actions={mainCalendarActions}
       selectors={mainCalendarSelectors}
@@ -398,12 +346,6 @@
   </div>
 
   <AppDock
-    {isBusy}
-    {isDarkMode}
-    {dockTaskSearchData}
-    {dockTaskSearchSelection}
-    bind:dockTaskSearchState
-    {dockTaskSearchUi}
     onOpenSettings={() => (settingsDialogOpen = true)}
     onToggleTheme={toggleThemeMode}
     onPullCalendar={pullCalendar}
@@ -424,31 +366,17 @@
   >
     <Dialog.Header class="absolute top-0 left-0 right-0"></Dialog.Header>
     <div class="min-h-0 flex-1 overflow-hidden">
-      <SettingsPanel bind:settings {isBusy} {saveSettings} />
+      <SettingsPanel bind:settings={appState.settings} isBusy={appState.isBusy} {saveSettings} />
     </div>
   </Dialog.Content>
 </Dialog.Root>
 
 <!-- Report dialog -->
-<ReportDialog bind:open={reportDialogOpen} {snapshot} {isBusy} {openDraftDialog} />
+<ReportDialog bind:open={reportDialogOpen} {openDraftDialog} />
 
-<WeeklyWorkingHoursDialog
-  bind:open={weeklyWorkingHoursDialogOpen}
-  {snapshot}
-  {isBusy}
-  {saveWeeklyWorkingHours}
-/>
+<WeeklyWorkingHoursDialog bind:open={weeklyWorkingHoursDialogOpen} {saveWeeklyWorkingHours} />
 
 <!-- Worklog draft dialog -->
-<WorklogDraftDialog bind:draftDialogOpen bind:draftComment {worklogDraft} {isBusy} {pushWorklog} />
+<WorklogDraftDialog bind:draftDialogOpen bind:draftComment {worklogDraft} {pushWorklog} />
 
-<TaskTransitionsDialog
-  bind:open={transitionsDialogOpen}
-  sessions={snapshot?.state.sessions ?? []}
-  {jiraResults}
-  customTaskCategories={settings.customTaskCategories}
-  workingHours={settings.workingHours}
-  {weeklyWorkingHoursOverrides}
-  {isBusy}
-  onSave={saveTaskTransitions}
-/>
+<TaskTransitionsDialog bind:open={transitionsDialogOpen} onSave={saveTaskTransitions} />

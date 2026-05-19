@@ -118,6 +118,44 @@ export class JiraClient {
     )
   }
 
+  async fetchIssueDetails(input: {
+    baseUrl: string
+    email: string
+    apiToken: string
+    issueKey: string
+    bookingCodeField: string
+  }): Promise<{ summary: string; bookingCode?: string } | undefined> {
+    const field = input.bookingCodeField.trim()
+    const fieldsToFetch = field ? `summary,${field}` : 'summary'
+    const params = new URLSearchParams({ fields: fieldsToFetch })
+    const url = `${ensureBaseUrl(input.baseUrl)}/rest/api/3/issue/${encodeURIComponent(input.issueKey)}?${params.toString()}`
+
+    const response = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        Authorization: jiraAuthHeader(input.email, input.apiToken)
+      }
+    })
+
+    if (!response.ok) {
+      console.log(
+        `[JiraClient] Failed to fetch issue details for ${input.issueKey} (${response.status}). Response:`,
+        await response.text()
+      )
+      return undefined
+    }
+
+    const data = (await response.json()) as JiraIssueDetailsResponse
+    const summary = stringifyUnknown(data.fields?.summary)
+    if (!summary) return undefined
+
+    return {
+      summary,
+      bookingCode: field ? stringifyUnknown(data.fields?.[field]) : undefined
+    }
+  }
+
   private async fetchBookingCode(input: {
     baseUrl: string
     email: string

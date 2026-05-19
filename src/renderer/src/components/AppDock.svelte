@@ -1,5 +1,4 @@
 <script lang="ts">
-  import type { CustomTaskCategory, JiraIssue, TaskSession } from '../../../shared/types'
   import { Button } from '$lib/components/ui/button'
   import TaskSearch from './TaskSearch.svelte'
   import CogIcon from '@lucide/svelte/icons/settings'
@@ -9,39 +8,10 @@
   import Clock3Icon from '@lucide/svelte/icons/clock-3'
   import SunIcon from '@lucide/svelte/icons/sun'
   import MoonIcon from '@lucide/svelte/icons/moon'
-
-  type DockTaskSearchState = {
-    jiraQuery: string
-    activeTab: 'jira' | 'custom'
-  }
-
-  type DockTaskSearchData = {
-    jiraResults: JiraIssue[]
-    customTaskCategories: CustomTaskCategory[]
-    sessions: TaskSession[]
-    recentIssueKeys: string[]
-  }
-
-  type DockTaskSearchSelection = {
-    primaryIssueKey: string
-    currentKey: string
-    currentCustomTaskCategory: string
-  }
-
-  type DockTaskSearchUi = {
-    useSelectionTrigger: boolean
-    triggerLabel: string
-    triggerButtonClass: string
-    popoverContentClass: string
-  }
+  import { mode } from 'mode-watcher'
+  import { appState } from '$lib/stores/app-state.svelte'
 
   let {
-    isBusy,
-    isDarkMode,
-    dockTaskSearchData,
-    dockTaskSearchSelection,
-    dockTaskSearchState = $bindable(),
-    dockTaskSearchUi,
     onOpenSettings,
     onToggleTheme,
     onPullCalendar,
@@ -53,12 +23,6 @@
     onOpenReports,
     onOpenWeeklyOverrides
   }: {
-    isBusy: boolean
-    isDarkMode: boolean
-    dockTaskSearchData: DockTaskSearchData
-    dockTaskSearchSelection: DockTaskSearchSelection
-    dockTaskSearchState: DockTaskSearchState
-    dockTaskSearchUi: DockTaskSearchUi
     onOpenSettings: () => void
     onToggleTheme: () => void
     onPullCalendar: () => Promise<void>
@@ -70,6 +34,29 @@
     onOpenReports: () => void
     onOpenWeeklyOverrides: () => void
   } = $props()
+
+  const isDarkMode = $derived(mode.current === 'dark')
+
+  const dockTaskSearchData = $derived({
+    jiraResults: appState.jiraResults,
+    customTaskCategories: appState.settings.customTaskCategories,
+    sessions: appState.enrichedSessions,
+    recentIssueKeys: appState.snapshot?.state.recentIssueKeys ?? [],
+    jiraIssueCache: appState.snapshot?.state.jiraIssueCache ?? {}
+  })
+
+  const dockTaskSearchSelection = $derived({
+    primaryIssueKey: appState.activeIssueKey,
+    currentKey: appState.activeIssueKey,
+    currentCustomTaskCategory: ''
+  })
+
+  const dockTaskSearchUi = $derived({
+    useSelectionTrigger: true,
+    triggerLabel: appState.activeIssueLabel,
+    triggerButtonClass: 'h-8 w-[220px] justify-between rounded-full text-sm',
+    popoverContentClass: 'w-[320px] p-3'
+  })
 </script>
 
 <div class="fixed bottom-5 left-1/2 z-50 -translate-x-1/2">
@@ -95,7 +82,7 @@
       variant="ghost"
       size="icon"
       class="rounded-full"
-      disabled={isBusy}
+      disabled={appState.isBusy}
       onclick={onPullCalendar}
     >
       <RefreshCwIcon class="size-4" />
@@ -107,9 +94,9 @@
     <TaskSearch
       data={dockTaskSearchData}
       selection={dockTaskSearchSelection}
-      bind:searchState={dockTaskSearchState}
+      bind:searchState={appState.dockSearchState}
       ui={dockTaskSearchUi}
-      disabled={isBusy}
+      disabled={appState.isBusy}
       {onClearSelection}
       onSearch={onSearchIssues}
       onSelectJira={onSelectIssue}

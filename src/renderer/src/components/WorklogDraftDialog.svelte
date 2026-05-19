@@ -4,6 +4,7 @@
   import { Button } from '$lib/components/ui/button'
   import { Label } from '$lib/components/ui/label'
   import { Textarea } from '$lib/components/ui/textarea'
+  import { appState } from '$lib/stores/app-state.svelte'
 
   const WORKLOG_UPDATE_TEMPLATE = [
     'Update summary:',
@@ -17,13 +18,11 @@
     draftDialogOpen = $bindable(false),
     draftComment = $bindable(''),
     worklogDraft = null,
-    isBusy = false,
     pushWorklog
   }: {
     draftDialogOpen?: boolean
     draftComment?: string
     worklogDraft?: WorklogDraft | null
-    isBusy?: boolean
     pushWorklog: () => Promise<void>
   } = $props()
 </script>
@@ -72,7 +71,7 @@
 
     <Dialog.Footer>
       <Button variant="secondary" onclick={() => (draftDialogOpen = false)}>Cancel</Button>
-      <Button disabled={isBusy || !worklogDraft} onclick={pushWorklog}
+      <Button disabled={appState.isBusy || !worklogDraft} onclick={pushWorklog}
         >Confirm & Push to Jira</Button
       >
     </Dialog.Footer>

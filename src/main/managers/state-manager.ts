@@ -21,6 +21,7 @@ const createDefaultState = (): PersistedState => ({
   sessions: [],
   loggedWorklogs: [],
   recentIssueKeys: [],
+  jiraIssueCache: {},
   calendarEvents: [],
   calendarLinks: [],
   manualCustomTaskEntries: []
@@ -218,6 +219,29 @@ const sanitizeState = (raw: unknown): PersistedState => {
           .filter((entry): entry is LoggedWorklogEntry => entry !== null)
       : [],
     recentIssueKeys: Array.isArray(candidate.recentIssueKeys) ? candidate.recentIssueKeys : [],
+    jiraIssueCache: isRecord(candidate.jiraIssueCache)
+      ? Object.fromEntries(
+          Object.entries(candidate.jiraIssueCache)
+            .filter(
+              ([key, entry]) =>
+                typeof key === 'string' &&
+                isRecord(entry) &&
+                typeof (entry as Record<string, unknown>).summary === 'string' &&
+                typeof (entry as Record<string, unknown>).lastFetchedIso === 'string'
+            )
+            .map(([key, entry]) => {
+              const e = entry as Record<string, unknown>
+              return [
+                key,
+                {
+                  summary: e.summary as string,
+                  bookingCode: typeof e.bookingCode === 'string' ? e.bookingCode : undefined,
+                  lastFetchedIso: e.lastFetchedIso as string
+                }
+              ]
+            })
+        )
+      : {},
     calendarEvents: sanitizedCalendarEvents,
     calendarLinks: sanitizedCalendarLinks,
     manualCustomTaskEntries: Array.isArray(candidate.manualCustomTaskEntries)

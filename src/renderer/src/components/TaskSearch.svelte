@@ -1,5 +1,10 @@
 <script lang="ts">
-  import type { CustomTaskCategory, JiraIssue, TaskSession } from '../../../shared/types'
+  import type {
+    CustomTaskCategory,
+    JiraIssue,
+    JiraIssueCacheEntry,
+    TaskSession
+  } from '../../../shared/types'
   import * as Tabs from '$lib/components/ui/tabs'
   import * as Popover from '$lib/components/ui/popover'
   import { Badge } from '$lib/components/ui/badge'
@@ -18,6 +23,7 @@
     customTaskCategories?: CustomTaskCategory[]
     sessions?: TaskSession[]
     recentIssueKeys?: string[]
+    jiraIssueCache?: Record<string, JiraIssueCacheEntry>
   }
 
   type TaskSearchSelection = {
@@ -64,6 +70,7 @@
   const customTaskCategories = $derived(data.customTaskCategories ?? [])
   const sessions = $derived(data.sessions ?? [])
   const recentIssueKeys = $derived(data.recentIssueKeys ?? [])
+  const jiraIssueCache = $derived(data.jiraIssueCache ?? {})
   const primaryIssueKey = $derived(selection.primaryIssueKey ?? '')
   const currentKey = $derived(selection.currentKey ?? '')
   const currentCustomTaskCategory = $derived(selection.currentCustomTaskCategory ?? '')
@@ -78,7 +85,7 @@
   let popoverOpen = $state(false)
 
   const ticketSummaryByKey = (key: string): string | undefined =>
-    getTicketSummaryByKey({ key, jiraResults, sessions, customTaskCategories })
+    getTicketSummaryByKey({ key, jiraResults, sessions, customTaskCategories, jiraIssueCache })
 
   const sortedFilteredTicketKeys = $derived(
     getSortedFilteredTicketKeys({
@@ -88,7 +95,8 @@
       recentIssueKeys,
       customTaskCategories,
       primaryIssueKey,
-      currentKey
+      currentKey,
+      jiraIssueCache
     })
   )
 

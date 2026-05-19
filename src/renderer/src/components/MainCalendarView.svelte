@@ -1,22 +1,8 @@
 ﻿<script lang="ts">
-  import type {
-    AppSettings,
-    AppSnapshot,
-    CalendarEventClassification,
-    JiraIssue,
-    TaskSession,
-    WorkingHoursSchedule
-  } from '../../../shared/types'
+  import type { CalendarEventClassification, WorkingHoursSchedule } from '../../../shared/types'
   import CalendarPanel from './CalendarPanel.svelte'
   import EventClassifier from './EventClassifier.svelte'
-
-  type MainCalendarContext = {
-    snapshot?: AppSnapshot | null
-    settings: AppSettings
-    jiraResults?: JiraIssue[]
-    sessions?: TaskSession[]
-    workingHours: WorkingHoursSchedule
-  }
+  import { appState } from '$lib/stores/app-state.svelte'
 
   type MainCalendarSelection = {
     selectedIssueKey?: string
@@ -50,13 +36,13 @@
   }
 
   let {
-    context,
+    workingHours,
     selection = $bindable({ selectedIssueKey: '', otherTicketMap: {} }),
     actions,
     selectors,
     onDisplayedWeekStartChange
   }: {
-    context: MainCalendarContext
+    workingHours: WorkingHoursSchedule
     selection?: MainCalendarSelection
     actions: MainCalendarActions
     selectors: MainCalendarSelectors
@@ -75,20 +61,20 @@
   let selectedCalendarEventId = $state('')
   let selectedEventAnchorRect = $state<AnchorRect | null>(null)
 
-  const calendarEvents = $derived(context.snapshot?.state.calendarEvents ?? [])
+  const calendarEvents = $derived(appState.snapshot?.state.calendarEvents ?? [])
   const selectedCalendarEvent = $derived(
     calendarEvents.find((e) => e.id === selectedCalendarEventId) ?? calendarEvents[0]
   )
   const primaryIssueKey = $derived(
-    selection.selectedIssueKey || context.snapshot?.activeSession?.jiraIssueKey || ''
+    selection.selectedIssueKey || appState.snapshot?.activeSession?.jiraIssueKey || ''
   )
 
   const calendarPanelData = $derived({
     calendarEvents,
-    calendarLinks: context.snapshot?.state.calendarLinks ?? [],
-    customTaskCategories: context.snapshot?.state.settings.customTaskCategories ?? [],
-    sessions: context.sessions ?? [],
-    workingHours: context.workingHours
+    calendarLinks: appState.snapshot?.state.calendarLinks ?? [],
+    customTaskCategories: appState.snapshot?.state.settings.customTaskCategories ?? [],
+    sessions: appState.enrichedSessions,
+    workingHours
   })
 
   const calendarPanelBehavior = $derived.by(() => ({
@@ -107,11 +93,11 @@
   const eventClassifierContext = $derived({
     selectedCalendarEvent,
     popupAnchorRect: selectedEventAnchorRect,
-    jiraResults: context.jiraResults ?? [],
-    recentIssueKeys: context.snapshot?.state.recentIssueKeys ?? [],
-    sessions: context.snapshot?.state.sessions ?? [],
+    jiraResults: appState.jiraResults,
+    recentIssueKeys: appState.snapshot?.state.recentIssueKeys ?? [],
+    sessions: appState.enrichedSessions,
     primaryIssueKey,
-    customTaskCategories: context.settings.customTaskCategories ?? []
+    customTaskCategories: appState.settings.customTaskCategories ?? []
   })
 
   const eventClassifierActions = $derived.by(() => ({
