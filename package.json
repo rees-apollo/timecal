@@ -64,7 +64,7 @@
     "eslint-plugin-svelte": "^3.17.1",
     "mode-watcher": "^1.1.0",
     "prettier": "^3.8.3",
-    "prettier-plugin-svelte": "^3.5.1",
+    "prettier-plugin-svelte": "^3.5.2",
     "shadcn-svelte": "^1.2.7",
     "sharp": "^0.34.5",
     "svelte": "^5.55.5",
