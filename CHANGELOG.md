@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.7.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.6.1...timecal-v1.7.0) (2026-05-26)
+
+
+### Features
+
+* enhance update management and add version info to settings ([5c223e0](https://github.com/rees-apollo/timecal/commit/5c223e069347d7a310ea544fbecaae8cecc4c9cc))
+
+
+### Bug Fixes
+
+* refactor sessions for reactivity ([0fa64ed](https://github.com/rees-apollo/timecal/commit/0fa64ed6b43b23fde163dcc2a6e974ea63cf6587))
+
 ## [1.6.1](https://github.com/rees-apollo/timecal/compare/timecal-v1.6.0...timecal-v1.6.1) (2026-05-15)
 
 
