@@ -30,7 +30,7 @@
   "dependencies": {
     "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@schedule-x/calendar": "^4.5.0",
+    "@schedule-x/calendar": "^4.6.0",
     "@schedule-x/drag-and-drop": "^3.7.3",
     "@schedule-x/events-service": "^4.5.0",
     "@schedule-x/resize": "^3.7.3",
