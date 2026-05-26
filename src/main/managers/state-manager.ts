@@ -230,7 +230,7 @@ const sanitizeState = (raw: unknown): PersistedState => {
                 typeof (entry as Record<string, unknown>).lastFetchedIso === 'string'
             )
             .map(([key, entry]) => {
-              const e = entry as Record<string, unknown>
+              const e = entry as unknown as Record<string, unknown>
               return [
                 key,
                 {
