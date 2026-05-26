@@ -48,6 +48,9 @@ const api = {
     electronAPI.ipcRenderer.invoke('worklog:buildDraft', input),
   pushWorklog: (draft: WorklogDraft): Promise<boolean> =>
     electronAPI.ipcRenderer.invoke('worklog:push', draft),
+  getAppVersion: (): Promise<string> => electronAPI.ipcRenderer.invoke('app:getVersion'),
+  checkForUpdates: (): Promise<AppSnapshot> =>
+    electronAPI.ipcRenderer.invoke('app:checkForUpdates'),
   onStateChanged: (callback: (snapshot: AppSnapshot) => void): (() => void) => {
     const subscription = (_: unknown, snapshot: AppSnapshot): void => callback(snapshot)
     electronAPI.ipcRenderer.on('state:changed', subscription)

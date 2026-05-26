@@ -113,15 +113,14 @@ export class JiraCacheManager {
       }
     }
 
-    if (fetched.length > 0) {
-      this.withStateUpdate(() => {
-        const state = this.stateStore.get()
-        for (const { key, details } of fetched) {
-          const existing = state.jiraIssueCache[key]
-          state.jiraIssueCache[key] = mergeJiraIssueEntry(existing, details, key)
-        }
-      })
-    }
+    this.withStateUpdate(() => {
+      const state = this.stateStore.get()
+      for (const { key, details } of fetched) {
+        const existing = state.jiraIssueCache[key]
+        state.jiraIssueCache[key] = mergeJiraIssueEntry(existing, details, key)
+      }
+      state.jiraLastSyncedIso = new Date().toISOString()
+    })
   }
 
   /**
@@ -129,14 +128,14 @@ export class JiraCacheManager {
    *  - Every 30 minutes: re-fetch all known issue keys (recentIssueKeys + all cache entries)
    *    to verify booking codes and summaries are still current in Jira.
    *  - Every 2 minutes: aggressively re-fetch any known keys with incomplete cached data.
-   * Also runs an immediate pass on startup for incomplete entries.
+   * Also runs an immediate full refresh on startup so the sync timestamp is set straight away.
    */
   scheduleRefresh(): void {
     setImmediate(() => {
-      const incompleteKeys = this.getAllKnownKeys().filter((k) => this.isIncomplete(k))
-      if (incompleteKeys.length > 0) {
-        this.refreshKeys(incompleteKeys).catch((err) =>
-          console.error('[JiraCacheManager] Startup incomplete-entry refresh failed:', err)
+      const allKeys = this.getAllKnownKeys()
+      if (allKeys.length > 0) {
+        this.refreshKeys(allKeys).catch((err) =>
+          console.error('[JiraCacheManager] Startup refresh failed:', err)
         )
       }
     })

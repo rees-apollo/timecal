@@ -33,6 +33,8 @@ interface TimecalApi {
   addManualCustomTask: (input: AddManualCustomTaskInput) => Promise<AppSnapshot>
   buildWorklogDraft: (input?: BuildWorklogDraftInput) => Promise<WorklogDraft>
   pushWorklog: (draft: WorklogDraft) => Promise<boolean>
+  getAppVersion: () => Promise<string>
+  checkForUpdates: () => Promise<AppSnapshot>
   onStateChanged: (callback: (snapshot: AppSnapshot) => void) => () => void
 }
 

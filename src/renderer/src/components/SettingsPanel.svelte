@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { onMount } from 'svelte'
   import type { AppSettings } from '../../../shared/types'
   import { Button } from '$lib/components/ui/button'
   import { Input } from '$lib/components/ui/input'
@@ -19,8 +20,9 @@
     FieldSet,
     FieldLegend
   } from '$lib/components/ui/field'
+  import { appState } from '$lib/stores/app-state.svelte'
 
-  type SettingsCategory = 'jira' | 'working-hours' | 'custom-task'
+  type SettingsCategory = 'jira' | 'working-hours' | 'custom-task' | 'about'
 
   let {
     settings = $bindable(),
@@ -49,6 +51,11 @@
       id: 'custom-task',
       label: 'Custom Task',
       description: 'Manage custom task categories, booking codes, and colors.'
+    },
+    {
+      id: 'about',
+      label: 'About',
+      description: 'Version info, sync diagnostics, and update options.'
     }
   ]
 
@@ -70,6 +77,33 @@
   const activeCategoryMeta = $derived(
     settingsCategories.find((category) => category.id === activeCategory) ?? settingsCategories[0]
   )
+
+  // About section
+  let appVersion = $state<string>('')
+  let isCheckingForUpdates = $state(false)
+
+  onMount(async () => {
+    appVersion = await window.api.getAppVersion()
+  })
+
+  const formatSyncDate = (iso: string | undefined): string => {
+    if (!iso) return 'Never'
+    const d = new Date(iso)
+    return d.toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    })
+  }
+
+  const handleCheckForUpdates = async (): Promise<void> => {
+    isCheckingForUpdates = true
+    try {
+      const snapshot = await window.api.checkForUpdates()
+      appState.snapshot = snapshot
+    } finally {
+      isCheckingForUpdates = false
+    }
+  }
 </script>
 
 <Sidebar.Provider
@@ -223,6 +257,37 @@
                 {/each}
               </Table.Body>
             </Table.Root>
+          </FieldGroup>
+        </FieldSet>
+      {:else if activeCategory === 'about'}
+        <FieldSet>
+          <FieldLegend class="sr-only">About</FieldLegend>
+          <FieldGroup>
+            <div class="space-y-4">
+              <div
+                class="grid grid-cols-[max-content_1fr] items-center gap-x-6 gap-y-2 text-sm py-6"
+              >
+                <span class="text-muted-foreground">Version</span>
+                <span class="font-mono">{appVersion || '—'}</span>
+
+                <span class="text-muted-foreground">Outlook last synced</span>
+                <span>{formatSyncDate(appState.snapshot?.state.calendarLastPulledIso)}</span>
+
+                <span class="text-muted-foreground">Jira last synced</span>
+                <span>{formatSyncDate(appState.snapshot?.state.jiraLastSyncedIso)}</span>
+
+                <span class="text-muted-foreground">Updates last checked</span>
+                <span>{formatSyncDate(appState.snapshot?.state.lastUpdateCheckIso)}</span>
+              </div>
+
+              <Button
+                variant="outline"
+                disabled={isCheckingForUpdates}
+                onclick={handleCheckForUpdates}
+              >
+                {isCheckingForUpdates ? 'Checking…' : 'Check for updates'}
+              </Button>
+            </div>
           </FieldGroup>
         </FieldSet>
       {:else}

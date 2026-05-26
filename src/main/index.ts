@@ -2,7 +2,7 @@ import { app, shell, BrowserWindow, ipcMain } from 'electron'
 import { join } from 'path'
 import iconPng from '../../resources/icon.png?asset'
 import iconIco from '../../resources/icon.ico?asset'
-import { setupAutoUpdates } from './managers/update-manager'
+import { setupAutoUpdates, triggerManualUpdateCheck } from './managers/update-manager'
 import { StateStore } from './managers/state-manager'
 import { JiraCacheManager } from './managers/jira-cache-manager'
 import { EventManager } from './managers/event-manager'
@@ -164,6 +164,14 @@ app.whenReady().then(() => {
   })
 
   ipcMain.handle('app:getSnapshot', async () => getSnapshot())
+  ipcMain.handle('app:getVersion', async () => app.getVersion())
+  ipcMain.handle('app:checkForUpdates', async () => {
+    const snapshot = withStateUpdate(() => {
+      stateStore.get().lastUpdateCheckIso = new Date().toISOString()
+    })
+    if (app.isPackaged) triggerManualUpdateCheck()
+    return snapshot
+  })
   settingsManager.registerIpcHandlers(ipcMain)
   taskManager.registerIpcHandlers(ipcMain)
   eventManager.registerIpcHandlers(ipcMain)
@@ -171,7 +179,11 @@ app.whenReady().then(() => {
   console.log('APP READY - Creating Window')
   createWindow()
   console.log('APP READY - Window Created, Setting up Auto Updates')
-  setupAutoUpdates(app)
+  setupAutoUpdates(app, () => {
+    withStateUpdate(() => {
+      stateStore.get().lastUpdateCheckIso = new Date().toISOString()
+    })
+  })
 
   // On startup, show cached calendar data immediately from stateStore.load(), then run a
   // one-time full refresh in the background to reconcile everything without blocking launch.

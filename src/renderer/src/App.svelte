@@ -173,10 +173,14 @@
   }
 
   const pullCalendar = async (): Promise<void> => {
-    await runAction(async () => {
+    const toastId = toast.loading('Syncing with Outlook…')
+    try {
       const next = await window.api.pullCalendar()
       applySnapshot(next)
-    }, 'Outlook calendar loaded.')
+      toast.success('Outlook calendar loaded.', { id: toastId })
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Unknown error', { id: toastId })
+    }
   }
 
   const saveTaskTransitions = async (transitions: TaskTransitionInput[]): Promise<void> => {

@@ -159,11 +159,13 @@ export interface PersistedState {
   loggedWorklogs: LoggedWorklogEntry[]
   recentIssueKeys: string[]
   jiraIssueCache: Record<string, JiraIssueCacheEntry>
+  jiraLastSyncedIso?: string
   calendarLastPulledIso?: string
   calendarCacheStartIso?: string
   calendarEvents: CalendarEvent[]
   calendarLinks: CalendarEventLink[]
   manualCustomTaskEntries: ManualCustomTaskEntry[]
+  lastUpdateCheckIso?: string
 }
 
 export interface StartTaskInput {

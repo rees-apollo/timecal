@@ -1,7 +1,7 @@
 import type { App } from 'electron'
 import { autoUpdater } from 'electron-updater'
 
-export const setupAutoUpdates = (app: App): void => {
+export const setupAutoUpdates = (app: App, onCheckStarted: () => void): void => {
   if (!app.isPackaged) {
     return
   }
@@ -11,6 +11,7 @@ export const setupAutoUpdates = (app: App): void => {
 
   autoUpdater.on('checking-for-update', () => {
     console.log('Auto-updater: checking for updates')
+    onCheckStarted()
   })
 
   autoUpdater.on('update-available', (info) => {
@@ -46,4 +47,10 @@ export const setupAutoUpdates = (app: App): void => {
     },
     60 * 60 * 1000
   )
+}
+
+export const triggerManualUpdateCheck = (): void => {
+  autoUpdater.checkForUpdates().catch((error) => {
+    console.error('Manual auto-updater check failed:', error)
+  })
 }
