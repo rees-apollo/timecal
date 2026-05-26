@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.7.1](https://github.com/rees-apollo/timecal/compare/timecal-v1.7.0...timecal-v1.7.1) (2026-05-26)
+
+
+### Bug Fixes
+
+* improve type assertion in sanitizeState function ([22d37a7](https://github.com/rees-apollo/timecal/commit/22d37a774afa167d3d384c5264fd2a8d6f31cffb))
+* improve type assertion in sanitizeState function ([3db2cbb](https://github.com/rees-apollo/timecal/commit/3db2cbb4e10da1f4d12822a92634716d68408834))
+
 ## [1.7.0](https://github.com/rees-apollo/timecal/compare/timecal-v1.6.1...timecal-v1.7.0) (2026-05-26)
 
 
