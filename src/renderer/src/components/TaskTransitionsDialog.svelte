@@ -1,4 +1,5 @@
 ﻿<script lang="ts">
+  import { tick } from 'svelte'
   import type { TaskTransitionInput } from '../../../shared/types'
   import * as Dialog from '$lib/components/ui/dialog'
   import { Button } from '$lib/components/ui/button'
@@ -34,8 +35,12 @@
     appState.snapshot?.state.weeklyWorkingHoursOverrides ?? {}
   )
 
+  const PAGE_SIZE = 20
+
   let rows: TransitionDraftRow[] = $state([])
   let wasOpen = $state(false)
+  let visibleCount = $state(PAGE_SIZE)
+  let scrollContainer: HTMLElement | null = $state(null)
 
   const knownTasksByKey = $derived.by(() => {
     return buildKnownTasksByKey(jiraResults, customTaskCategories, sessions, jiraIssueCache)
@@ -44,13 +49,23 @@
   $effect(() => {
     if (open && !wasOpen) {
       rows = toTransitionRows(sessions)
+      visibleCount = PAGE_SIZE
       wasOpen = true
+      tick().then(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight
+        }
+      })
     }
 
     if (!open) {
       wasOpen = false
     }
   })
+
+  const sliceStart = $derived(Math.max(0, rows.length - visibleCount))
+  const visibleRows = $derived(rows.slice(sliceStart))
+  const hasMore = $derived(sliceStart > 0)
 
   const updateRow = (index: number, next: Partial<TransitionDraftRow>): void => {
     rows = rows.map((row, rowIndex) => (rowIndex === index ? { ...row, ...next } : row))
@@ -77,6 +92,39 @@
       )
     )
   )
+  const visibleDurations = $derived(rowDurations.slice(sliceStart))
+
+  const handleScroll = (event: Event): void => {
+    const el = event.currentTarget as HTMLElement
+    if (el.scrollTop <= 0 && hasMore) {
+      const prevHeight = el.scrollHeight
+      visibleCount += PAGE_SIZE
+      tick().then(() => {
+        if (scrollContainer) {
+          scrollContainer.scrollTop = scrollContainer.scrollHeight - prevHeight
+        }
+      })
+    }
+  }
+
+  const addTransition = (): void => {
+    rows = [
+      ...rows,
+      {
+        id: crypto.randomUUID(),
+        startLocal: nowLocalDateTimeInput(),
+        issueKey: '',
+        summary: '',
+        bookingCode: '',
+        taskType: 'jira'
+      }
+    ]
+    tick().then(() => {
+      if (scrollContainer) {
+        scrollContainer.scrollTop = scrollContainer.scrollHeight
+      }
+    })
+  }
 
   const save = async (): Promise<void> => {
     const result = buildTransitionsFromRows(rows)
@@ -91,48 +139,59 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="overflow-y-auto w-[min(96vw,64rem)] sm:max-w-5xl overflow-x-hidden">
-    <Dialog.Header>
+  <Dialog.Content class="flex max-h-[90vh] w-[min(96vw,64rem)] flex-col overflow-hidden sm:max-w-5xl">
+    <Dialog.Header class="shrink-0">
       <Dialog.Title>Task Transition History</Dialog.Title>
       <Dialog.Description>
         Edit task transition start times. Saving will rebuild session history so each task starts
         when the previous one ends.
       </Dialog.Description>
     </Dialog.Header>
-    <div class="space-y-3 py-2">
-      <TaskTransitionsTable
-        {rows}
-        {rowDurations}
-        {jiraResults}
-        {customTaskCategories}
-        {sessions}
-        {jiraIssueCache}
-        {updateRow}
-        {applyKnownTask}
-        {removeRow}
-      />
 
-      <div class="flex justify-between">
-        <Button
-          variant="secondary"
-          onclick={() => {
-            rows = [
-              ...rows,
-              {
-                id: crypto.randomUUID(),
-                startLocal: nowLocalDateTimeInput(),
-                issueKey: '',
-                summary: '',
-                bookingCode: '',
-                taskType: 'jira'
-              }
-            ]
-          }}
-        >
-          <PlusIcon class="mr-2 size-4" />
-          Add Transition
-        </Button>
-        <p class="text-xs text-muted-foreground">Rows are saved in chronological order.</p>
+    <div
+      bind:this={scrollContainer}
+      class="min-h-0 flex-1 overflow-x-hidden overflow-y-auto"
+      onscroll={handleScroll}
+    >
+      <div class="space-y-3 py-2">
+        {#if hasMore}
+          <div class="flex justify-center py-1">
+            <Button
+              variant="ghost"
+              size="sm"
+              onclick={() => {
+                const prevHeight = scrollContainer?.scrollHeight ?? 0
+                visibleCount += PAGE_SIZE
+                tick().then(() => {
+                  if (scrollContainer) {
+                    scrollContainer.scrollTop = scrollContainer.scrollHeight - prevHeight
+                  }
+                })
+              }}
+            >
+              Load older history
+            </Button>
+          </div>
+        {/if}
+        <TaskTransitionsTable
+          rows={visibleRows}
+          rowDurations={visibleDurations}
+          {jiraResults}
+          {customTaskCategories}
+          {sessions}
+          {jiraIssueCache}
+          updateRow={(index, next) => updateRow(sliceStart + index, next)}
+          applyKnownTask={(index, nextKey) => applyKnownTask(sliceStart + index, nextKey)}
+          removeRow={(index) => removeRow(sliceStart + index)}
+        />
+
+        <div class="flex justify-between">
+          <Button variant="secondary" onclick={addTransition}>
+            <PlusIcon class="mr-2 size-4" />
+            Add Transition
+          </Button>
+          <p class="text-xs text-muted-foreground">Rows are saved in chronological order.</p>
+        </div>
       </div>
     </div>
 

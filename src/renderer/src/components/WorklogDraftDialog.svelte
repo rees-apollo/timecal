@@ -28,43 +28,45 @@
 </script>
 
 <Dialog.Root bind:open={draftDialogOpen}>
-  <Dialog.Content class="max-w-lg">
-    <Dialog.Header>
+  <Dialog.Content class="flex max-h-[90vh] max-w-lg flex-col overflow-hidden">
+    <Dialog.Header class="shrink-0">
       <Dialog.Title>Confirm Jira Worklog Push</Dialog.Title>
       <Dialog.Description>Review time before posting to Jira.</Dialog.Description>
     </Dialog.Header>
 
     {#if worklogDraft}
-      <div class="space-y-3 py-2">
-        <div class="grid grid-cols-2 gap-2 rounded-xl border p-3 text-sm">
-          <div>Issue</div>
-          <div class="font-semibold">{worklogDraft.issueKey}</div>
-          <div>Time to log</div>
-          <div class="font-semibold">
-            {Math.max(0, Math.round(worklogDraft.timeSpentSeconds / 60))}m
+      <div class="min-h-0 flex-1 overflow-y-auto">
+        <div class="space-y-3 py-2">
+          <div class="grid grid-cols-2 gap-2 rounded-xl border p-3 text-sm">
+            <div>Issue</div>
+            <div class="font-semibold">{worklogDraft.issueKey}</div>
+            <div>Time to log</div>
+            <div class="font-semibold">
+              {Math.max(0, Math.round(worklogDraft.timeSpentSeconds / 60))}m
+            </div>
           </div>
-        </div>
 
-        <div>
-          <div class="mb-1 flex items-center justify-between gap-2">
-            <Label for="worklogComment">Worklog Comment</Label>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onclick={() => {
-                draftComment = draftComment.trim()
-                  ? `${draftComment}\n\n${WORKLOG_UPDATE_TEMPLATE}`
-                  : WORKLOG_UPDATE_TEMPLATE
-              }}
-            >
-              Insert Update Template
-            </Button>
+          <div>
+            <div class="mb-1 flex items-center justify-between gap-2">
+              <Label for="worklogComment">Worklog Comment</Label>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onclick={() => {
+                  draftComment = draftComment.trim()
+                    ? `${draftComment}\n\n${WORKLOG_UPDATE_TEMPLATE}`
+                    : WORKLOG_UPDATE_TEMPLATE
+                }}
+              >
+                Insert Update Template
+              </Button>
+            </div>
+            <Textarea id="worklogComment" rows={4} bind:value={draftComment} />
+            <p class="mt-1 text-xs text-muted-foreground">
+              Reminder: include outcomes, blockers, and next steps so ticket updates stay clear.
+            </p>
           </div>
-          <Textarea id="worklogComment" rows={4} bind:value={draftComment} />
-          <p class="mt-1 text-xs text-muted-foreground">
-            Reminder: include outcomes, blockers, and next steps so ticket updates stay clear.
-          </p>
         </div>
       </div>
     {/if}

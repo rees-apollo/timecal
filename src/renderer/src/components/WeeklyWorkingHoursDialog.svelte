@@ -67,90 +67,92 @@
 </script>
 
 <Dialog.Root bind:open>
-  <Dialog.Content class="w-[min(96vw,44rem)] sm:max-w-2xl">
-    <Dialog.Header>
+  <Dialog.Content class="flex max-h-[90vh] w-[min(96vw,44rem)] flex-col overflow-hidden sm:max-w-2xl">
+    <Dialog.Header class="shrink-0">
       <Dialog.Title>Weekly Working Hours</Dialog.Title>
       <Dialog.Description>
         Set custom working hours for a specific week to adjust report calculations.
       </Dialog.Description>
     </Dialog.Header>
 
-    <div class="space-y-4">
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <div class="flex items-center gap-1">
-          <Button variant="outline" size="sm" onclick={() => (weekOffset -= 1)}>Previous</Button>
-          <span class="text-muted-foreground px-2 text-xs">{selectedWeekLabel}</span>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={weekOffset === 0}
-            onclick={() => (weekOffset += 1)}
-          >
-            Next
-          </Button>
+    <div class="min-h-0 flex-1 overflow-y-auto">
+      <div class="space-y-4 py-1">
+        <div class="flex flex-wrap items-center justify-between gap-2">
+          <div class="flex items-center gap-1">
+            <Button variant="outline" size="sm" onclick={() => (weekOffset -= 1)}>Previous</Button>
+            <span class="text-muted-foreground px-2 text-xs">{selectedWeekLabel}</span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={weekOffset === 0}
+              onclick={() => (weekOffset += 1)}
+            >
+              Next
+            </Button>
+          </div>
         </div>
-      </div>
 
-      <Table.Root>
-        <Table.Header>
-          <Table.Row>
-            <Table.Head>Day</Table.Head>
-            <Table.Head>Start</Table.Head>
-            <Table.Head>End</Table.Head>
-            <Table.Head>Lunch (min)</Table.Head>
-          </Table.Row>
-        </Table.Header>
-        <Table.Body>
-          {#each weekdays as day (day.key)}
+        <Table.Root>
+          <Table.Header>
             <Table.Row>
-              <Table.Cell class="font-medium">{day.label}</Table.Cell>
-              <Table.Cell>
-                <Input type="time" bind:value={weekOverrideDraft[day.key].start} />
-              </Table.Cell>
-              <Table.Cell>
-                <Input type="time" bind:value={weekOverrideDraft[day.key].end} />
-              </Table.Cell>
-              <Table.Cell>
-                <Input
-                  type="number"
-                  min="0"
-                  max="240"
-                  placeholder="60"
-                  value={weekOverrideDraft[day.key].lunchDurationMins ?? ''}
-                  oninput={(e) =>
-                    updateWeekOverrideLunchDuration(
-                      day.key,
-                      (e.currentTarget as HTMLInputElement).value
-                    )}
-                />
-              </Table.Cell>
+              <Table.Head>Day</Table.Head>
+              <Table.Head>Start</Table.Head>
+              <Table.Head>End</Table.Head>
+              <Table.Head>Lunch (min)</Table.Head>
             </Table.Row>
-          {/each}
-        </Table.Body>
-      </Table.Root>
+          </Table.Header>
+          <Table.Body>
+            {#each weekdays as day (day.key)}
+              <Table.Row>
+                <Table.Cell class="font-medium">{day.label}</Table.Cell>
+                <Table.Cell>
+                  <Input type="time" bind:value={weekOverrideDraft[day.key].start} />
+                </Table.Cell>
+                <Table.Cell>
+                  <Input type="time" bind:value={weekOverrideDraft[day.key].end} />
+                </Table.Cell>
+                <Table.Cell>
+                  <Input
+                    type="number"
+                    min="0"
+                    max="240"
+                    placeholder="60"
+                    value={weekOverrideDraft[day.key].lunchDurationMins ?? ''}
+                    oninput={(e) =>
+                      updateWeekOverrideLunchDuration(
+                        day.key,
+                        (e.currentTarget as HTMLInputElement).value
+                      )}
+                  />
+                </Table.Cell>
+              </Table.Row>
+            {/each}
+          </Table.Body>
+        </Table.Root>
+      </div>
+    </div>
 
-      <div class="flex flex-wrap items-center justify-between gap-2">
-        <p class="text-muted-foreground text-xs">
-          Applies to Work Logs and Timesheet totals for the selected week.
-        </p>
-        <div class="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={appState.isBusy}
-            onclick={() => saveWeeklyWorkingHours(selectedWeekKey)}
-          >
-            Use Default
-          </Button>
-          <Button
-            size="sm"
-            disabled={appState.isBusy}
-            onclick={() =>
-              saveWeeklyWorkingHours(selectedWeekKey, WorkingSchedule.sanitize(weekOverrideDraft))}
-          >
-            Save
-          </Button>
-        </div>
+    <div class="-mx-4 -mb-4 rounded-b-xl border-t p-4 flex flex-wrap items-center justify-between gap-2">
+      <p class="text-muted-foreground text-xs">
+        Applies to Work Logs and Timesheet totals for the selected week.
+      </p>
+      <div class="flex items-center gap-2">
+        <Button
+          variant="outline"
+          size="sm"
+          disabled={appState.isBusy}
+          onclick={() => saveWeeklyWorkingHours(selectedWeekKey)}
+        >
+          Use Default
+        </Button>
+        <Button
+          size="sm"
+          disabled={appState.isBusy}
+          onclick={() =>
+            saveWeeklyWorkingHours(selectedWeekKey, WorkingSchedule.sanitize(weekOverrideDraft))}
+        >
+          Save
+        </Button>
       </div>
     </div>
   </Dialog.Content>
